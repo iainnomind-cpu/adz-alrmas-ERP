@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  /* Completely hide root and everything else */
+  #root,
+  .no-print,
+  .fixed,
+  .absolute {
+    display: none !important;
+  }
+
+  /* Show only the print portal container and its children */
+  body>.print-portal-container {
+    display: block !important;
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100%;
+    visibility: visible !important;
+  }
+
+  .print-content,
+  .print-content * {
+    visibility: visible !important;
+  }
+
+  /* Preserve specific layouts for proper rendering */
+  .print-content table {
+    display: table !important;
+  }
+
+  .print-content thead {
+    display: table-header-group !important;
+  }
+
+  .print-content tbody {
+    display: table-row-group !important;
+  }
+
+  .print-content tr {
+    display: table-row !important;
+  }
+
+  .print-content th,
+  .print-content td {
+    display: table-cell !important;
+  }
+
+  .print-content .grid {
+    display: grid !important;
+  }
+
+  .print-content .flex {
+    display: flex !important;
+  }
+
+  .print-content div {
+    display: block;
+  }
+
+  /* Specific fixes for report layout in print */
+  .max-w-4xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Compact spacing for print */
+  .print-content .space-y-6>*+* {
+    margin-top: 0.75rem !important;
+  }
+
+  .print-content .space-y-4>*+* {
+    margin-top: 0.5rem !important;
+  }
+
+  .print-content .space-y-3>*+* {
+    margin-top: 0.375rem !important;
+  }
+
+  .print-content .p-8 {
+    padding: 1rem !important;
+  }
+
+  .print-content .p-6 {
+    padding: 0.75rem !important;
+  }
+
+  .print-content .p-4 {
+    padding: 0.5rem !important;
+  }
+
+  .print-content .gap-6 {
+    gap: 0.75rem !important;
+  }
+
+  .print-content .gap-4 {
+    gap: 0.5rem !important;
+  }
+
+  .print-content .gap-3 {
+    gap: 0.375rem !important;
+  }
+}
