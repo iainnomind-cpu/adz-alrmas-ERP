@@ -116,12 +116,25 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
       const item = inventoryItems.find(i => i.id === value);
       if (item) {
         // Usar price > base_price_mxn (el primero que tenga valor)
-        const itemPrice = item.price || item.base_price_mxn || 0;
+        const basePrice = item.price || item.base_price_mxn || 0;
+
+        // Calcular descuento según el tier del cliente (valores por defecto)
+        let discountPercent = 0;
+        switch (customerTier) {
+          case 1: discountPercent = 10; break;
+          case 2: discountPercent = 15; break;
+          case 3: discountPercent = 20; break;
+          case 4: discountPercent = 25; break;
+          case 5: discountPercent = 30; break;
+          default: discountPercent = 0;
+        }
+
+        const discountedPrice = basePrice * (1 - (discountPercent / 100));
 
         updated[index] = {
           ...updated[index],
           inventory_item_id: value,
-          unit_cost: parseFloat(itemPrice.toFixed(2))
+          unit_cost: parseFloat(discountedPrice.toFixed(2))
         };
       }
     } else {
