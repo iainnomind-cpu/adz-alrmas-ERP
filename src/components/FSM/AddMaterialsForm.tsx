@@ -17,6 +17,11 @@ interface InventoryItem {
   stock_quantity: number;
   brand?: string;
   model?: string;
+  discount_tier_1?: number;
+  discount_tier_2?: number;
+  discount_tier_3?: number;
+  discount_tier_4?: number;
+  discount_tier_5?: number;
 }
 
 interface MaterialToAdd {
@@ -86,7 +91,7 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
   const loadInventoryItems = async () => {
     const { data, error } = await supabase
       .from('price_list')
-      .select('id, name, code, category, price, base_price_mxn, stock_quantity, brand, model')
+      .select('id, name, code, category, price, base_price_mxn, stock_quantity, brand, model, discount_tier_1, discount_tier_2, discount_tier_3, discount_tier_4, discount_tier_5')
       .eq('is_active', true)
       .gt('stock_quantity', 0)
       .order('name');
@@ -118,14 +123,14 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
         // Usar price > base_price_mxn (el primero que tenga valor)
         const basePrice = item.price || item.base_price_mxn || 0;
 
-        // Calcular descuento según el tier del cliente (valores por defecto)
+        // Calcular descuento según el tier del cliente
         let discountPercent = 0;
         switch (customerTier) {
-          case 1: discountPercent = 10; break;
-          case 2: discountPercent = 15; break;
-          case 3: discountPercent = 20; break;
-          case 4: discountPercent = 25; break;
-          case 5: discountPercent = 30; break;
+          case 1: discountPercent = item.discount_tier_1 || 10; break;
+          case 2: discountPercent = item.discount_tier_2 || 15; break;
+          case 3: discountPercent = item.discount_tier_3 || 20; break;
+          case 4: discountPercent = item.discount_tier_4 || 25; break;
+          case 5: discountPercent = item.discount_tier_5 || 30; break;
           default: discountPercent = 0;
         }
 

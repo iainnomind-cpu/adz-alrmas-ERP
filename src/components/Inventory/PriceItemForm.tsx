@@ -220,12 +220,26 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 brand: formData.brand || null,
                 model: formData.model || null,
                 category: formData.category,
+                technology: showTechnicalFields ? formData.technology : 'n/a',
+                battery_type: showTechnicalFields ? formData.battery_type : 'n/a',
                 currency: formData.currency,
+                supplier_list_price: formData.supplier_list_price ? parseFloat(formData.supplier_list_price) : null,
+                supplier_discount_percentage: parseFloat(formData.supplier_discount_percentage) || 0,
+                cost_price_usd: formData.currency === 'USD' ? parseFloat(formData.cost_price_usd) : null,
+                cost_price_mxn: formData.currency === 'MXN' ? parseFloat(formData.cost_price_mxn) : null,
                 exchange_rate: parseFloat(formData.exchange_rate) || 21,
                 base_price_mxn: sellingPrice > 0 ? sellingPrice : calculatedBaseMXN,
+                discount_tier_1: formData.discount_tier_1,
+                discount_tier_2: formData.discount_tier_2,
+                discount_tier_3: formData.discount_tier_3,
+                discount_tier_4: formData.discount_tier_4,
+                discount_tier_5: formData.discount_tier_5,
                 stock_quantity: showStockFields ? parseInt(formData.stock_quantity) || 0 : 0,
                 min_stock_level: showStockFields ? parseInt(formData.min_stock_level) || 5 : 0,
-                is_active: formData.is_active
+                supplier_notes: formData.supplier_notes || null,
+                internal_notes: formData.internal_notes || null,
+                is_active: formData.is_active,
+                is_kit: false // Siempre false - kits no permitidos
             };
 
             if (isEditing && item) {

@@ -209,7 +209,12 @@ export function CompleteServiceForm({
            *,
            inventory_items:price_list (
              category,
-             base_price_mxn
+             base_price_mxn,
+             discount_tier_1,
+             discount_tier_2,
+             discount_tier_3,
+             discount_tier_4,
+             discount_tier_5
            )
          `)
         .eq('service_order_id', orderId);
@@ -229,14 +234,12 @@ export function CompleteServiceForm({
         if (isEquip) {
           // Re-calculate base tier price
           let discountPercent = 0;
-          // Usar porcentajes por defecto ya que no se guardan en DB
           switch (tier) {
-            case 1: discountPercent = 10; break;
-            case 2: discountPercent = 15; break;
-            case 3: discountPercent = 20; break;
-            case 4: discountPercent = 25; break;
-            case 5: discountPercent = 30; break;
-            default: discountPercent = 10;
+            case 1: discountPercent = item.discount_tier_1 || 0; break;
+            case 2: discountPercent = item.discount_tier_2 || 0; break;
+            case 3: discountPercent = item.discount_tier_3 || 0; break;
+            case 4: discountPercent = item.discount_tier_4 || 0; break;
+            case 5: discountPercent = item.discount_tier_5 || 0; break;
           }
 
           const tierPrice = item.base_price_mxn * (1 - (discountPercent / 100));
