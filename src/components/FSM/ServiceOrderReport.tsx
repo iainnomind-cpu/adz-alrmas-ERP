@@ -51,6 +51,7 @@ interface Report {
 
 export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps) {
   const [report, setReport] = useState<Report | null>(null);
+  const [detailedMaterials, setDetailedMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -61,16 +62,30 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
   }, [orderId]);
 
   const loadReport = async () => {
-    const { data, error } = await supabase
-      .from('service_order_reports')
-      .select('*')
-      .eq('service_order_id', orderId)
-      .maybeSingle();
+    const [reportData, materialsData] = await Promise.all([
+      supabase
+        .from('service_order_reports')
+        .select('*')
+        .eq('service_order_id', orderId)
+        .maybeSingle(),
+      supabase
+        .from('service_order_materials')
+        .select(`
+          *,
+          inventory_items (
+            base_price_mxn
+          )
+        `)
+        .eq('service_order_id', orderId)
+    ]);
 
-    if (error) {
-      console.error('Error loading report:', error);
+    if (reportData.error) {
+      console.error('Error loading report:', reportData.error);
     } else {
-      setReport(data);
+      setReport(reportData.data);
+      if (materialsData.data) {
+        setDetailedMaterials(materialsData.data);
+      }
     }
     setLoading(false);
   };
@@ -301,10 +316,42 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
                       <span className="text-gray-700">Materiales:</span>
                       <span className="font-semibold text-gray-900">${report.materials_cost.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between py-2 border-t border-gray-300">
-                      <span className="font-semibold text-gray-900">SUBTOTAL:</span>
-                      <span className="font-semibold text-gray-900">${report.total_cost.toFixed(2)}</span>
-                    </div>
+                    {(() => {
+                      const baseTotalMaterials = detailedMaterials.reduce((sum, m) => {
+                        const price = m.inventory_items?.base_price_mxn ?? m.unit_cost ?? 0;
+                        return sum + (price * (m.quantity_used || 0));
+                      }, 0);
+
+                      const netTotalMaterials = detailedMaterials.reduce((sum, m) => {
+                        return sum + ((m.unit_cost ?? 0) * (m.quantity_used || 0));
+                      }, 0);
+
+                      const totalDiscount = baseTotalMaterials - netTotalMaterials;
+                      const hasDiscount = totalDiscount > 0.1;
+                      const baseSubtotal = report.labor_cost + baseTotalMaterials;
+
+                      return hasDiscount ? (
+                        <>
+                          <div className="flex justify-between py-2 border-t border-gray-300">
+                            <span className="text-gray-700">Subtotal Base:</span>
+                            <span className="font-semibold text-gray-900">${baseSubtotal.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between py-2">
+                            <span className="text-red-600">Descuento:</span>
+                            <span className="font-semibold text-red-600">-${totalDiscount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between py-2">
+                            <span className="font-semibold text-gray-900">Subtotal con Descuento:</span>
+                            <span className="font-semibold text-gray-900">${report.total_cost.toFixed(2)}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between py-2 border-t border-gray-300">
+                          <span className="font-semibold text-gray-900">SUBTOTAL:</span>
+                          <span className="font-semibold text-gray-900">${report.total_cost.toFixed(2)}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex justify-between py-2">
                       <span className="text-gray-700">IVA (16%):</span>
                       <span className="font-semibold text-gray-900">${(report.total_cost * 0.16).toFixed(2)}</span>
@@ -555,10 +602,42 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
                       <span className="text-gray-700 text-sm">Materiales:</span>
                       <span className="font-semibold text-gray-900 text-sm">${report.materials_cost.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between py-1 border-t border-gray-300">
-                      <span className="font-semibold text-gray-900 text-sm">SUBTOTAL:</span>
-                      <span className="font-semibold text-gray-900 text-sm">${report.total_cost.toFixed(2)}</span>
-                    </div>
+                    {(() => {
+                      const baseTotalMaterials = detailedMaterials.reduce((sum, m) => {
+                        const price = m.inventory_items?.base_price_mxn ?? m.unit_cost ?? 0;
+                        return sum + (price * (m.quantity_used || 0));
+                      }, 0);
+
+                      const netTotalMaterials = detailedMaterials.reduce((sum, m) => {
+                        return sum + ((m.unit_cost ?? 0) * (m.quantity_used || 0));
+                      }, 0);
+
+                      const totalDiscount = baseTotalMaterials - netTotalMaterials;
+                      const hasDiscount = totalDiscount > 0.1;
+                      const baseSubtotal = report.labor_cost + baseTotalMaterials;
+
+                      return hasDiscount ? (
+                        <>
+                          <div className="flex justify-between py-1 border-t border-gray-300">
+                            <span className="text-gray-700 text-sm">Subtotal Base:</span>
+                            <span className="font-semibold text-gray-900 text-sm">${baseSubtotal.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between py-1">
+                            <span className="text-red-600 text-sm">Descuento:</span>
+                            <span className="font-semibold text-red-600 text-sm">-${totalDiscount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between py-1">
+                            <span className="font-semibold text-gray-900 text-sm">Subtotal con Descuento:</span>
+                            <span className="font-semibold text-gray-900 text-sm">${report.total_cost.toFixed(2)}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between py-1 border-t border-gray-300">
+                          <span className="font-semibold text-gray-900 text-sm">SUBTOTAL:</span>
+                          <span className="font-semibold text-gray-900 text-sm">${report.total_cost.toFixed(2)}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex justify-between py-1">
                       <span className="text-gray-700 text-sm">IVA (16%):</span>
                       <span className="font-semibold text-gray-900 text-sm">${(report.total_cost * 0.16).toFixed(2)}</span>

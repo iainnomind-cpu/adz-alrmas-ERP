@@ -35,6 +35,12 @@ interface EquipmentMaterial {
     name: string;
     code: string;
     category: string;
+    base_price_mxn?: number;
+    discount_tier_1?: number;
+    discount_tier_2?: number;
+    discount_tier_3?: number;
+    discount_tier_4?: number;
+    discount_tier_5?: number;
   } | null;
   willInstall: boolean;
   unit_cost?: number;
@@ -1013,18 +1019,50 @@ export function CompleteServiceForm({
                 Resumen de Costos del Servicio
               </h3>
               <div className="space-y-2">
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-semibold text-gray-900">${currentTotalCost.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-gray-600">IVA (16%):</span>
-                  <span className="font-semibold text-gray-900">${(currentTotalCost * 0.16).toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t-2 border-blue-300">
-                  <span className="text-lg font-bold text-gray-900">Total a Pagar:</span>
-                  <span className="text-2xl font-bold text-blue-600">${(currentTotalCost * 1.16).toFixed(2)}</span>
-                </div>
+                {(() => {
+                  const baseTotalMaterials = equipmentMaterials.reduce((sum, m) => {
+                    const price = m.inventory_items?.base_price_mxn ?? m.unit_cost ?? 0;
+                    return sum + (price * (m.quantity_used || 0));
+                  }, 0);
+
+                  const netTotalMaterials = equipmentMaterials.reduce((sum, m) => {
+                    return sum + ((m.unit_cost ?? 0) * (m.quantity_used || 0));
+                  }, 0);
+
+                  const laborCost = currentTotalCost - netTotalMaterials;
+                  const totalBase = baseTotalMaterials + laborCost;
+                  const totalDiscount = totalBase - currentTotalCost;
+                  const hasDiscount = totalDiscount > 0.1;
+
+                  return (
+                    <>
+                      {hasDiscount && (
+                        <>
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-gray-600">Subtotal Base:</span>
+                            <span className="font-semibold text-gray-900">${totalBase.toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-green-600">Descuento:</span>
+                            <span className="font-semibold text-green-600">-${totalDiscount.toFixed(2)}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-gray-600">Subtotal {hasDiscount ? 'con Descuento' : ''}:</span>
+                        <span className="font-semibold text-gray-900">${currentTotalCost.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-gray-600">IVA (16%):</span>
+                        <span className="font-semibold text-gray-900">${(currentTotalCost * 0.16).toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t-2 border-blue-300">
+                        <span className="text-lg font-bold text-gray-900">Total a Pagar:</span>
+                        <span className="text-2xl font-bold text-blue-600">${(currentTotalCost * 1.16).toFixed(2)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
