@@ -227,10 +227,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 base_price_mxn: sellingPrice > 0 ? sellingPrice : calculatedBaseMXN,
                 stock_quantity: showStockFields ? parseInt(formData.stock_quantity) || 0 : 0,
                 min_stock_level: showStockFields ? parseInt(formData.min_stock_level) || 5 : 0,
-                supplier_notes: formData.supplier_notes || null,
-                internal_notes: formData.internal_notes || null,
-                is_active: formData.is_active,
-                is_kit: false // Siempre false - kits no permitidos
+                is_active: formData.is_active
             };
 
             if (isEditing && item) {
