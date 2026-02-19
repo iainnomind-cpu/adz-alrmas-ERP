@@ -179,10 +179,13 @@ export function CompleteServiceForm({
             .select('pricing_tier')
             .eq('id', targetCustomerId)
             .single();
-          if (customerData) tier = (customerData as any).pricing_tier || 1;
+          if (customerData) {
+            const rawTier = (customerData as any).pricing_tier;
+            tier = rawTier ? parseInt(rawTier.toString()) : 1;
+          }
         }
 
-        console.log(`👤 Customer Tier: ${tier}`);
+        console.log(`👤 Customer Tier (parsed): ${tier}`);
 
         const verifiedMaterials = await Promise.all(materials.map(async (m) => {
           const item = m.inventory_items;

@@ -79,8 +79,9 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
           .eq('id', order.customer_id)
           .single();
 
-        if ((customer as any)?.pricing_tier) {
-          setCustomerTier((customer as any).pricing_tier);
+        if (customer) {
+          const rawTier = (customer as any).pricing_tier;
+          setCustomerTier(rawTier ? parseInt(rawTier.toString()) : 1);
         }
       }
     } catch (e) {
