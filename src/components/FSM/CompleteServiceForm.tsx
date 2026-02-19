@@ -187,6 +187,7 @@ export function CompleteServiceForm({
 
         console.log(`👤 Customer Tier (parsed): ${tier}`);
 
+        let debugAlertShown = false;
         const verifiedMaterials = await Promise.all(materials.map(async (m) => {
           const item = m.inventory_items;
           // Si no es item o no es categoría de equipo, devolver tal cual
@@ -206,6 +207,19 @@ export function CompleteServiceForm({
 
           const expectedPrice = parseFloat((basePrice * (1 - (discountPercent / 100))).toFixed(2));
           const currentUnitCost = m.unit_cost || 0;
+
+          if (!debugAlertShown && isEquipmentCategory(item.category || '')) {
+            alert(`DEBUG INFO:
+             Cliente Tier: ${tier}
+             Item: ${item.name}
+             Precio Base: $${basePrice}
+             Descuento Tier ${tier}: ${discountPercent}%
+             Precio Esperado: $${expectedPrice}
+             Precio Actual: $${currentUnitCost}
+             
+             ¿Se corregirá? ${expectedPrice < currentUnitCost ? 'SÍ' : 'NO'}`);
+            debugAlertShown = true;
+          }
 
           // Si el precio actual es MAYOR al esperado (ej: es precio base) y la diferencia es significativa
           // (permitimos margen de 0.1 por redondeo, pero verificamos si es igual a basePrice)
