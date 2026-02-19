@@ -119,7 +119,7 @@ export function CompleteServiceForm({
         setCurrentTotalCost(serviceOrder.total_cost);
 
         // Always load equipment materials for any service type
-        await loadEquipmentMaterials();
+        await loadEquipmentMaterials(serviceOrder.customer_id);
       }
     } catch (err) {
       console.error('Error in loadServiceOrderDetails:', err);
@@ -127,10 +127,12 @@ export function CompleteServiceForm({
     }
   };
 
-  const loadEquipmentMaterials = async () => {
+  const loadEquipmentMaterials = async (currentCustomerId?: string) => {
     try {
       console.log('=== 🔍 DEBUG: loadEquipmentMaterials STARTED ===');
       console.log('OrderId:', orderId);
+
+      const targetCustomerId = currentCustomerId || customerId;
 
       const { data: materials, error: materialsError } = await supabase
         .from('service_order_materials')
@@ -140,7 +142,13 @@ export function CompleteServiceForm({
             id,
             name,
             code,
-            category
+            category,
+            base_price_mxn,
+            discount_tier_1,
+            discount_tier_2,
+            discount_tier_3,
+            discount_tier_4,
+            discount_tier_5
           )
         `)
         .eq('service_order_id', orderId);
@@ -158,8 +166,103 @@ export function CompleteServiceForm({
       if (materials && materials.length > 0) {
         console.log(`✅ Total materials found: ${materials.length}`);
 
+        // --- VERIFICATION & HEALING LOGIC START ---
+        // Verifica si los precios tienen el descuento de nivel aplicado. Si no, lo corrige.
+        let needsUpdate = false;
+        let costDifference = 0;
+
+        // 1. Obtener nivel del cliente
+        let tier = 1;
+        if (targetCustomerId) {
+          const { data: customerData } = await supabase
+            .from('customers')
+            .select('pricing_tier')
+            .eq('id', targetCustomerId)
+            .single();
+          if (customerData) tier = (customerData as any).pricing_tier || 1;
+        }
+
+        console.log(`👤 Customer Tier: ${tier}`);
+
+        const verifiedMaterials = await Promise.all(materials.map(async (m) => {
+          const item = m.inventory_items;
+          // Si no es item o no es categoría de equipo, devolver tal cual
+          if (!item || !isEquipmentCategory(item.category || '')) return m;
+
+          // Calcular precio esperado con descuento de nivel
+          const basePrice = item.base_price_mxn || 0;
+          let discountPercent = 0;
+          switch (tier) {
+            case 1: discountPercent = item.discount_tier_1 || 10; break;
+            case 2: discountPercent = item.discount_tier_2 || 15; break;
+            case 3: discountPercent = item.discount_tier_3 || 20; break;
+            case 4: discountPercent = item.discount_tier_4 || 25; break;
+            case 5: discountPercent = item.discount_tier_5 || 30; break;
+            default: discountPercent = 0;
+          }
+
+          const expectedPrice = parseFloat((basePrice * (1 - (discountPercent / 100))).toFixed(2));
+          const currentUnitCost = m.unit_cost || 0;
+
+          // Si el precio actual es MAYOR al esperado (ej: es precio base) y la diferencia es significativa
+          // (permitimos margen de 0.1 por redondeo, pero verificamos si es igual a basePrice)
+          const isBasePrice = Math.abs(currentUnitCost - basePrice) < 0.1;
+          const shouldHaveDiscount = discountPercent > 0;
+
+          if (shouldHaveDiscount && (currentUnitCost > expectedPrice + 0.5)) {
+            console.log(`⚠️ Detected incorrect price for ${item.name}. Current: ${currentUnitCost}, Expected: ${expectedPrice} (Tier ${tier}, -${discountPercent}%)`);
+
+            // Actualizar en DB
+            const newTotalCost = expectedPrice * m.quantity_used;
+            await supabase
+              .from('service_order_materials')
+              .update({
+                unit_cost: expectedPrice,
+                total_cost: newTotalCost
+              })
+              .eq('id', m.id);
+
+            needsUpdate = true;
+            costDifference += (currentUnitCost * m.quantity_used) - newTotalCost;
+
+            return {
+              ...m,
+              unit_cost: expectedPrice,
+              total_cost: newTotalCost
+            };
+          }
+
+          return m;
+        }));
+
+        if (needsUpdate) {
+          console.log(`🔄 Corrected material prices. Total reduction: ${costDifference}`);
+          // Actualizar total de la orden
+          const { data: currentOrder } = await supabase
+            .from('service_orders')
+            .select('materials_cost, total_cost')
+            .eq('id', orderId)
+            .single();
+
+          if (currentOrder) {
+            const newMaterialsCost = (currentOrder.materials_cost || 0) - costDifference;
+            const newTotalOrder = (currentOrder.total_cost || 0) - costDifference;
+
+            await supabase
+              .from('service_orders')
+              .update({
+                materials_cost: newMaterialsCost,
+                total_cost: newTotalOrder
+              })
+              .eq('id', orderId);
+
+            setCurrentTotalCost(newTotalOrder);
+          }
+        }
+        // --- VERIFICATION END ---
+
         // Load ALL materials, not just equipment categories
-        const equipmentData: EquipmentMaterial[] = materials.map((m) => ({
+        const equipmentData: EquipmentMaterial[] = verifiedMaterials.map((m) => ({
           id: m.id,
           inventory_item_id: m.inventory_item_id,
           quantity_used: m.quantity_used,
