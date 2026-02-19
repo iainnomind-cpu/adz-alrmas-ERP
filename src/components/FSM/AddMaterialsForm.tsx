@@ -32,7 +32,7 @@ interface MaterialToAdd {
   installation_notes?: string;
 }
 
-const EQUIPMENT_CATEGORIES = ['alarm', 'panel', 'sensor', 'keyboard', 'communicator', 'camera'];
+const EQUIPMENT_CATEGORIES = ['alarm', 'panel', 'sensor', 'keyboard', 'communicator', 'camera', 'dispositivo', 'device'];
 
 const isEquipment = (category: string): boolean => {
   return EQUIPMENT_CATEGORIES.includes(category.toLowerCase());
