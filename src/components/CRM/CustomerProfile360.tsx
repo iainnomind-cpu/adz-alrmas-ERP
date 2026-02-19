@@ -22,7 +22,8 @@ import {
   PauseCircle,
   MessageSquare,
   History,
-  Eye
+  Eye,
+  Plus
 } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
 import { MasterAccountManager } from './MasterAccountManager';
@@ -66,6 +67,16 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
   const [activeCardsCount, setActiveCardsCount] = useState(0);
   const [activeTab, setActiveTab] = useState<'general' | 'contacts' | 'equipment' | 'services' | 'billing' | 'accounts' | 'suspension' | 'observations' | 'history' | 'cards'>('general');
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [addingContact, setAddingContact] = useState(false);
+  const [newContact, setNewContact] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    relationship: '',
+    contact_type: 'Personal',
+    is_primary: false
+  });
 
   useEffect(() => {
     loadCustomerData();
@@ -110,6 +121,42 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
     setActiveCardsCount(activeCards);
 
     setLoading(false);
+  };
+
+  const handleAddContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newContact.name || !newContact.phone) return;
+
+    setAddingContact(true);
+    try {
+      const { error } = await supabase.from('customer_contacts').insert([{
+        customer_id: customerId,
+        name: newContact.name,
+        phone: newContact.phone,
+        email: newContact.email || null,
+        relationship: newContact.relationship || null,
+        contact_type: newContact.contact_type,
+        is_primary: newContact.is_primary
+      }] as any);
+
+      if (error) throw error;
+
+      await loadCustomerData();
+      setShowAddContactModal(false);
+      setNewContact({
+        name: '',
+        phone: '',
+        email: '',
+        relationship: '',
+        contact_type: 'Personal',
+        is_primary: false
+      });
+    } catch (error) {
+      console.error('Error adding contact:', error);
+      alert('Error al agregar contacto');
+    } finally {
+      setAddingContact(false);
+    }
   };
 
   if (loading) {
@@ -504,7 +551,16 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
 
             {activeTab === 'contacts' && (
               <div className="space-y-4">
-                <h3 className="font-semibold text-gray-900 text-lg">Contactos</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 text-lg">Contactos</h3>
+                  <button
+                    onClick={() => setShowAddContactModal(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nuevo Contacto
+                  </button>
+                </div>
                 {contacts.length === 0 ? (
                   <p className="text-gray-600 text-center py-8">No hay contactos registrados</p>
                 ) : (
@@ -834,6 +890,111 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
           />
         )
       }
-    </div >
+
+      {showAddContactModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Nuevo Contacto</h3>
+              <button
+                onClick={() => setShowAddContactModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddContact} className="p-6 space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Nombre Completo *</label>
+                <input
+                  type="text"
+                  required
+                  value={newContact.name}
+                  onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Teléfono *</label>
+                <input
+                  type="tel"
+                  required
+                  value={newContact.phone}
+                  onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Email</label>
+                <input
+                  type="email"
+                  value={newContact.email}
+                  onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Relación</label>
+                  <input
+                    type="text"
+                    value={newContact.relationship}
+                    onChange={(e) => setNewContact({ ...newContact, relationship: e.target.value })}
+                    placeholder="Ej. Esposo, Hija"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo</label>
+                  <select
+                    value={newContact.contact_type}
+                    onChange={(e) => setNewContact({ ...newContact, contact_type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Personal">Personal</option>
+                    <option value="Trabajo">Trabajo</option>
+                    <option value="Emergencia">Emergencia</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="is_primary"
+                  checked={newContact.is_primary}
+                  onChange={(e) => setNewContact({ ...newContact, is_primary: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="is_primary" className="text-sm font-medium text-gray-700">
+                  Contacto Principal
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddContactModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingContact}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {addingContact ? 'Guardando...' : 'Guardar Contacto'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

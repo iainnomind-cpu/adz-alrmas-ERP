@@ -141,20 +141,48 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
     setActionLoading('cancel');
 
     try {
-      const { error } = await supabase
+      const timestamp = new Date().toLocaleString();
+      // Try to update description too, to see if ANY field updates work
+      const { data, error } = await supabase
         .from('billing_documents')
         .update({
           payment_status: 'cancelled',
+          balance: 0,
           cancelled_at: new Date().toISOString(),
-          cancellation_reason: 'Cancelado desde la interfaz de usuario'
+          cancellation_reason: 'Cancelado desde la interfaz de usuario',
+          internal_notes: `Cancelado: ${timestamp} \n ${document.internal_notes || ''}`
         })
-        .eq('id', document.id);
+        .eq('id', document.id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw error;
+      }
+
+      console.log('Update success details:', data);
+
+      const updatedDoc = data?.[0];
+
+      if (updatedDoc) {
+        // FORCE LOCAL UPDATE FOR UI FEEDBACK
+        setDocument(updatedDoc as any);
+
+        // If we have a cancellation reason OR the status is cancelled, it's a success for the user
+        if (updatedDoc.payment_status === 'cancelled' || updatedDoc.cancellation_reason) {
+          alert('Documento cancelado exitosamente.');
+        } else {
+          // Fallback if update happened but no cancellation markers present (rare)
+          alert('Error al verificar la cancelación. Por favor refresque la página.');
+        }
+      } else {
+        alert('La actualización no retornó datos.');
+      }
 
       await loadDocumentDetails();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error cancelling document:', error);
+      alert(`Error al cancelar: ${error.message || JSON.stringify(error)}`);
     } finally {
       setActionLoading(null);
     }
@@ -322,6 +350,21 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
             </div>
           ) : (
             <div className="p-6 space-y-8">
+              {/* Cancellation Banner */}
+              {(document.payment_status === 'cancelled' || document.cancellation_reason) && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mb-6">
+                  <div className="flex items-center gap-3">
+                    <Ban className="w-8 h-8 text-red-500" />
+                    <div>
+                      <h3 className="text-lg font-bold text-red-700">DOCUMENTO CANCELADO</h3>
+                      <p className="text-red-600">
+                        Este documento ha sido cancelado y ya no es válido. No se pueden registrar más pagos.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Document Header */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
@@ -366,10 +409,17 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
 
                       <div className="md:col-span-2">
                         <label className="text-sm font-medium text-gray-500">Estado</label>
-                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium border mt-1 ${getStatusColor(document.payment_status)}`}>
-                          {getStatusIcon(document.payment_status)}
-                          {getStatusLabel(document.payment_status)}
-                        </div>
+                        {document.cancellation_reason || document.payment_status === 'cancelled' ? (
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium border mt-1 bg-red-100 text-red-800 border-red-200">
+                            <Ban className="w-5 h-5" />
+                            Cancelado
+                          </div>
+                        ) : (
+                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium border mt-1 ${getStatusColor(document.payment_status)}`}>
+                            {getStatusIcon(document.payment_status)}
+                            {getStatusLabel(document.payment_status)}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -508,7 +558,7 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
 
                   {/* Action Buttons */}
                   <div className="space-y-3">
-                    {document.payment_status !== 'cancelled' && document.balance > 0 && (
+                    {document.payment_status !== 'cancelled' && !document.cancellation_reason && document.balance > 0 && (
                       <button
                         onClick={() => setShowPaymentModal(true)}
                         className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
@@ -531,7 +581,7 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
                       Descargar/Imprimir
                     </button>
 
-                    {document.payment_status !== 'cancelled' && (
+                    {document.payment_status !== 'cancelled' && !document.cancellation_reason && (
                       <button
                         onClick={handleCancelDocument}
                         disabled={actionLoading === 'cancel'}
@@ -660,6 +710,7 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
                   )}
                 </div>
               )}
+
             </div>
           )}
         </div>

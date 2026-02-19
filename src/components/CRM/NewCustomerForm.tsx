@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { X, Save, Loader2 } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
+import { LocationMap } from './LocationMap';
 
 type CustomerInsert = Database['public']['Tables']['customers']['Insert'] & {
   branch_name?: string;
@@ -9,6 +10,17 @@ type CustomerInsert = Database['public']['Tables']['customers']['Insert'] & {
   master_account_id?: string | null;
   pricing_tier?: number;
 };
+
+// Extended interface for form state including UI-only fields
+interface CustomerFormState extends CustomerInsert {
+  street?: string;
+  exterior_number?: string;
+  interior_number?: string;
+  postal_code?: string;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+}
 
 interface NewCustomerFormProps {
   onClose: () => void;
@@ -26,12 +38,21 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [masterAccounts, setMasterAccounts] = useState<MasterAccount[]>([]);
-  const [formData, setFormData] = useState<CustomerInsert>({
+  const [formData, setFormData] = useState<CustomerFormState>({
     name: customer?.name || '',
     owner_name: customer?.owner_name || '',
     email: customer?.email || '',
     phone: customer?.phone || '',
     address: customer?.address || '',
+    // UI-only fields
+    street: '', // Initialize empty, will be part of address
+    exterior_number: '',
+    interior_number: '',
+    postal_code: '',
+    // Valid DB fields
+    neighborhood: customer?.neighborhood ?? '',
+    city: customer?.city ?? '',
+    state: customer?.state ?? '',
     customer_type: customer?.customer_type || 'casa',
     communication_tech: customer?.communication_tech || 'telefono',
     monitoring_plan: customer?.monitoring_plan || '',
@@ -84,11 +105,14 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
     }
 
     try {
+      // Create payload excluding UI-only fields
+      const { street, exterior_number, interior_number, postal_code, ...payload } = formData;
+
       if (customer?.id) {
         // Update existing customer
         const { error: updateError } = await supabase
           .from('customers')
-          .update(formData)
+          .update(payload as any)
           .eq('id', customer.id);
 
         if (updateError) throw updateError;
@@ -96,7 +120,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
         // Create new customer
         const { error: insertError } = await supabase
           .from('customers')
-          .insert([formData]);
+          .insert([payload as any]);
 
         if (insertError) throw insertError;
       }
@@ -105,14 +129,47 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar el cliente');
+      console.error('Error saving customer:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (field: keyof CustomerInsert, value: string | number | null | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field: keyof CustomerFormState, value: string | number | null | boolean) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+
+      // Auto-construct address if any address field changes
+      if (['street', 'exterior_number', 'interior_number', 'neighborhood', 'city', 'state', 'postal_code'].includes(field)) {
+        const parts = [];
+        // Access fields from newData using the extended interface keys
+        const street = newData.street;
+        const ext = newData.exterior_number;
+        const int = newData.interior_number;
+        const col = newData.neighborhood;
+        const zip = newData.postal_code;
+        const city = newData.city;
+        const state = newData.state;
+
+        if (street) parts.push(street);
+        if (ext) parts.push(`#${ext}`);
+        if (int) parts.push(`Int. ${int}`);
+        if (col) parts.push(`Col. ${col}`);
+        if (zip) parts.push(`CP ${zip}`);
+        if (city) parts.push(city);
+        if (state) parts.push(state);
+
+        newData.address = parts.join(', ');
+      }
+
+      return newData;
+    });
   };
+
+  const handleLocationChange = useCallback((lat: number, lng: number) => {
+    handleChange('gps_latitude', lat);
+    handleChange('gps_longitude', lng);
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
@@ -386,16 +443,99 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                 </select>
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dirección
-                </label>
-                <textarea
-                  value={formData.address || ''}
-                  onChange={(e) => handleChange('address', e.target.value)}
-                  rows={2}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+              <div className="md:col-span-2 space-y-4">
+                <h3 className="font-medium text-gray-900 border-b pb-2">Dirección</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Calle
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.street || ''}
+                      onChange={(e) => handleChange('street', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Nombre de la calle"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Código Postal
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.postal_code || ''}
+                      onChange={(e) => handleChange('postal_code', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      No. Exterior
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.exterior_number || ''}
+                      onChange={(e) => handleChange('exterior_number', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      No. Interior
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.interior_number || ''}
+                      onChange={(e) => handleChange('interior_number', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Colonia
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.neighborhood || ''}
+                      onChange={(e) => handleChange('neighborhood', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Ciudad
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.city || ''}
+                      onChange={(e) => handleChange('city', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Estado
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.state || ''}
+                      onChange={(e) => handleChange('state', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Dirección Completa (Auto)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.address || ''}
+                      readOnly
+                      className="w-full px-4 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -426,32 +566,48 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                 </select>
               </div>
 
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Latitud GPS
+                  Ubicación GPS
                 </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={formData.gps_latitude || ''}
-                  onChange={(e) => handleChange('gps_latitude', e.target.value ? parseFloat(e.target.value) : null)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Ej: 19.4326"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Longitud GPS
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={formData.gps_longitude || ''}
-                  onChange={(e) => handleChange('gps_longitude', e.target.value ? parseFloat(e.target.value) : null)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Ej: -99.1332"
-                />
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <LocationMap
+                    apiKey="AIzaSyCnpONcNQf8EaAGx0B2wy3Gziyw38WtdHw"
+                    address={formData.address || ''}
+                    latitude={formData.gps_latitude ?? null}
+                    longitude={formData.gps_longitude ?? null}
+                    onLocationChange={handleLocationChange}
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Arrastre el marcador rojo para precisar la ubicación exacta si es necesario.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Latitud
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={formData.gps_latitude || ''}
+                        readOnly
+                        className="w-full px-3 py-1.5 bg-white border border-gray-300 rounded text-sm text-gray-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Longitud
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={formData.gps_longitude || ''}
+                        readOnly
+                        className="w-full px-3 py-1.5 bg-white border border-gray-300 rounded text-sm text-gray-600"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="md:col-span-2">
@@ -503,9 +659,9 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                 )}
               </button>
             </div>
-          </form>
-        </div>
-      </div>
-    </div>
+          </form >
+        </div >
+      </div >
+    </div >
   );
 }

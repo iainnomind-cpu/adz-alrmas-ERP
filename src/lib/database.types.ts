@@ -333,6 +333,9 @@ export type Database = {
           account_type: string
           billing_preference: string
           billing_cycle: string
+          neighborhood: string | null
+          city: string | null
+          state: string | null
           consolidation_parent_id: string | null
           account_number: number | null
           is_master_account: boolean

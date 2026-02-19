@@ -5,6 +5,7 @@ import {
   Home, Store, Building, Warehouse, AlertCircle, CheckCircle2,
   Link as LinkIcon, Users, Calendar, Shield, Star, Navigation
 } from 'lucide-react';
+import { LocationMap } from './LocationMap';
 
 interface ServiceLocation {
   id: string;
@@ -27,6 +28,9 @@ interface ServiceLocation {
   notes: string | null;
   access_instructions: string | null;
   created_at: string;
+
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
 }
 
 interface AccountRelationship {
@@ -76,8 +80,20 @@ export function MasterAccountManager({
     contact_email: '',
     notes: '',
     access_instructions: '',
-    is_primary: false
+    is_primary: false,
+    gps_latitude: null as number | null,
+    gps_longitude: null as number | null,
+    // UI-only fields
+    street: '',
+    exterior_number: '',
+    interior_number: ''
   });
+
+  const [customerLocation, setCustomerLocation] = useState<{
+    address: string;
+    latitude: number | null;
+    longitude: number | null;
+  } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -86,7 +102,7 @@ export function MasterAccountManager({
   const loadData = async () => {
     setLoading(true);
     try {
-      const [locationsData, relationshipsData, consolidatedData] = await Promise.all([
+      const results = await Promise.all([
         supabase
           .from('service_locations')
           .select('*')
@@ -95,24 +111,44 @@ export function MasterAccountManager({
           .order('created_at', { ascending: true }),
         isMasterAccount
           ? supabase
-              .from('account_relationships')
-              .select('*')
-              .eq('master_account_id', customerId)
-              .order('priority_order', { ascending: true })
+            .from('account_relationships')
+            .select('*')
+            .eq('master_account_id', customerId)
+            .order('priority_order', { ascending: true })
           : Promise.resolve({ data: [], error: null }),
         isMasterAccount
           ? supabase
-              .from('customers')
-              .select('id, name, account_number, branch_name, is_single_branch, status, created_at')
-              .eq('master_account_id', customerId)
-              .eq('account_type', 'consolidated')
-              .order('branch_name')
-          : Promise.resolve({ data: [], error: null })
+            .from('customers')
+            .select('id, name, account_number, branch_name, is_single_branch, status, created_at')
+            .eq('master_account_id', customerId)
+            .eq('account_type', 'consolidated')
+            .order('branch_name')
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from('customers')
+          .select('address, gps_latitude, gps_longitude')
+          .eq('id', customerId)
+          .single()
       ]);
 
-      if (locationsData.data) setLocations(locationsData.data);
-      if (relationshipsData.data) setRelationships(relationshipsData.data);
-      if (consolidatedData.data) setConsolidatedAccounts(consolidatedData.data);
+      const locationsData = results[0];
+      const relationshipsData = results[1];
+      const consolidatedData = results[2];
+      const customerData = results[3];
+
+      if ((locationsData as any).data) setLocations((locationsData as any).data);
+      if ((relationshipsData as any).data) setRelationships((relationshipsData as any).data);
+      if ((consolidatedData as any).data) setConsolidatedAccounts((consolidatedData as any).data);
+
+      if (customerData.data) {
+        setCustomerLocation({
+          address: customerData.data.address || '',
+          latitude: customerData.data.gps_latitude,
+          longitude: customerData.data.gps_longitude
+        });
+      }
+
+
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -127,7 +163,21 @@ export function MasterAccountManager({
         .insert([{
           customer_id: customerId,
           master_account_id: isMasterAccount ? customerId : null,
-          ...newLocation
+          location_name: newLocation.location_name,
+          location_type: newLocation.location_type,
+          street_address: `${newLocation.street} ${newLocation.exterior_number ? `#${newLocation.exterior_number}` : ''} ${newLocation.interior_number ? `Int. ${newLocation.interior_number}` : ''}`.trim(),
+          neighborhood: newLocation.neighborhood,
+          city: newLocation.city,
+          state: newLocation.state,
+          postal_code: newLocation.postal_code,
+          contact_name: newLocation.contact_name,
+          contact_phone: newLocation.contact_phone,
+          contact_email: newLocation.contact_email,
+          notes: newLocation.notes,
+          access_instructions: newLocation.access_instructions,
+          is_primary: newLocation.is_primary,
+          gps_latitude: newLocation.gps_latitude,
+          gps_longitude: newLocation.gps_longitude
         }]);
 
       if (error) throw error;
@@ -146,7 +196,12 @@ export function MasterAccountManager({
         contact_email: '',
         notes: '',
         access_instructions: '',
-        is_primary: false
+        is_primary: false,
+        gps_latitude: null,
+        gps_longitude: null,
+        street: '',
+        exterior_number: '',
+        interior_number: ''
       });
 
       loadData();
@@ -376,15 +431,39 @@ export function MasterAccountManager({
               </select>
             </div>
 
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Calle *</label>
+                <input
+                  type="text"
+                  value={(newLocation as any).street || ''}
+                  onChange={(e) => setNewLocation({ ...newLocation, street: e.target.value } as any)}
+                  placeholder="Calle"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">No. Exterior *</label>
+                <input
+                  type="text"
+                  value={(newLocation as any).exterior_number || ''}
+                  onChange={(e) => setNewLocation({ ...newLocation, exterior_number: e.target.value } as any)}
+                  placeholder="Número"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            </div>
+
             <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Dirección *</label>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">No. Interior</label>
               <input
                 type="text"
-                value={newLocation.street_address}
-                onChange={(e) => setNewLocation({ ...newLocation, street_address: e.target.value })}
-                placeholder="Calle y número"
+                value={(newLocation as any).interior_number || ''}
+                onChange={(e) => setNewLocation({ ...newLocation, interior_number: e.target.value } as any)}
+                placeholder="Opcional"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
               />
             </div>
 
@@ -462,6 +541,22 @@ export function MasterAccountManager({
             </div>
 
             <div className="md:col-span-2">
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Ubicación en Mapa</label>
+              <div className="rounded-lg overflow-hidden border border-gray-300">
+                <LocationMap
+                  apiKey="AIzaSyCnpONcNQf8EaAGx0B2wy3Gziyw38WtdHw"
+                  address={`${(newLocation as any).street || ''} ${(newLocation as any).exterior_number || ''}, ${newLocation.city}, ${newLocation.state}`}
+                  latitude={newLocation.gps_latitude || null}
+                  longitude={newLocation.gps_longitude || null}
+                  onLocationChange={(lat, lng) => setNewLocation({ ...newLocation, gps_latitude: lat, gps_longitude: lng })}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Arrastre el pin para ajustar la ubicación exacta.
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">
                 Instrucciones de Acceso
               </label>
@@ -508,11 +603,32 @@ export function MasterAccountManager({
             </button>
             <button
               onClick={handleAddLocation}
-              disabled={!newLocation.location_name || !newLocation.street_address || !newLocation.city || !newLocation.state}
+              disabled={!newLocation.location_name || !(newLocation as any).street || !(newLocation as any).exterior_number || !newLocation.city || !newLocation.state}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Guardar Ubicación
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Customer Location Map */}
+      {customerLocation && (customerLocation.latitude || customerLocation.longitude) && (
+        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 mb-6">
+          <h5 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-blue-600" />
+            Ubicación Principal
+          </h5>
+          <LocationMap
+            apiKey="AIzaSyCnpONcNQf8EaAGx0B2wy3Gziyw38WtdHw"
+            address={customerLocation.address}
+            latitude={customerLocation.latitude}
+            longitude={customerLocation.longitude}
+            onLocationChange={() => { }}
+            readOnly={true}
+          />
+          <div className="mt-2 text-sm text-gray-600">
+            <p>{customerLocation.address}</p>
           </div>
         </div>
       )}
@@ -530,17 +646,15 @@ export function MasterAccountManager({
           {locations.map((location, index) => (
             <div
               key={location.id}
-              className={`bg-white rounded-xl p-5 border-2 transition-all hover:shadow-md ${
-                location.is_primary
-                  ? 'border-blue-400 bg-blue-50/50'
-                  : 'border-gray-200'
-              }`}
+              className={`bg-white rounded-xl p-5 border-2 transition-all hover:shadow-md ${location.is_primary
+                ? 'border-blue-400 bg-blue-50/50'
+                : 'border-gray-200'
+                }`}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-start gap-3 flex-1">
-                  <div className={`p-2 rounded-lg ${
-                    location.is_primary ? 'bg-blue-600' : 'bg-gray-600'
-                  }`}>
+                  <div className={`p-2 rounded-lg ${location.is_primary ? 'bg-blue-600' : 'bg-gray-600'
+                    }`}>
                     {getLocationIcon(location.location_type)}
                     <MapPin className="w-5 h-5 text-white" />
                   </div>
@@ -625,11 +739,10 @@ export function MasterAccountManager({
                 )}
 
                 <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    location.status === 'active'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${location.status === 'active'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-800'
+                    }`}>
                     {location.status === 'active' ? 'Activa' : location.status}
                   </span>
                   <span className="text-xs text-gray-500">
@@ -687,11 +800,10 @@ export function MasterAccountManager({
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    account.status === 'active'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${account.status === 'active'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-800'
+                    }`}>
                     {account.status === 'active' ? 'Activa' : account.status}
                   </span>
 

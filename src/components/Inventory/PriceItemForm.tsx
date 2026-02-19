@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase, type PriceListItem } from '../../lib/supabase';
 import {
     X, Save, Loader2, AlertCircle, Package, DollarSign,
-    Percent, Tag, Battery, Wifi, ClipboardList, Info
+    Percent, Tag, Battery, Wifi, ClipboardList, Info, ShoppingCart
 } from 'lucide-react';
 
 interface PriceItemFormProps {
@@ -31,6 +31,7 @@ interface FormData {
     cost_price_usd: string;
     cost_price_mxn: string;
     exchange_rate: string;
+    selling_price: string;
     discount_tier_1: number;
     discount_tier_2: number;
     discount_tier_3: number;
@@ -86,6 +87,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         cost_price_usd: item?.cost_price_usd?.toString() || '',
         cost_price_mxn: item?.cost_price_mxn?.toString() || '',
         exchange_rate: item?.exchange_rate?.toString() || '21.00',
+        selling_price: (item as any)?.selling_price?.toString() || '',
         discount_tier_1: item?.discount_tier_1 || 10,
         discount_tier_2: item?.discount_tier_2 || 15,
         discount_tier_3: item?.discount_tier_3 || 20,
@@ -122,6 +124,17 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
             return parseFloat(formData.cost_price_mxn) || 0;
         }
     }, [formData.currency, calculatedCostUSD, formData.exchange_rate, formData.cost_price_mxn]);
+
+    // Precio de venta al público
+    const sellingPrice = useMemo(() => {
+        return parseFloat(formData.selling_price) || 0;
+    }, [formData.selling_price]);
+
+    // Margen de ganancia
+    const profitMargin = useMemo(() => {
+        if (calculatedBaseMXN <= 0 || sellingPrice <= 0) return 0;
+        return ((sellingPrice - calculatedBaseMXN) / calculatedBaseMXN) * 100;
+    }, [calculatedBaseMXN, sellingPrice]);
 
     // Actualizar cost_price_usd cuando cambia el cálculo
     useEffect(() => {
@@ -215,6 +228,8 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 cost_price_usd: formData.currency === 'USD' ? parseFloat(formData.cost_price_usd) : null,
                 cost_price_mxn: formData.currency === 'MXN' ? parseFloat(formData.cost_price_mxn) : null,
                 exchange_rate: parseFloat(formData.exchange_rate) || 21,
+                selling_price: formData.selling_price ? parseFloat(formData.selling_price) : null,
+                base_price_mxn: sellingPrice > 0 ? sellingPrice : calculatedBaseMXN,
                 discount_tier_1: formData.discount_tier_1,
                 discount_tier_2: formData.discount_tier_2,
                 discount_tier_3: formData.discount_tier_3,
@@ -584,43 +599,104 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                             )}
                         </div>
 
-                        {/* SECCIÓN 4: Niveles de Descuento */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 border-b pb-2">
-                                <Percent className="w-5 h-5 text-blue-600" />
-                                Niveles de Descuento para Clientes
+                        {/* SECCIÓN: Precio de Venta al Público */}
+                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-emerald-300">
+                            <div className="flex items-center gap-2 mb-4">
+                                <ShoppingCart className="w-5 h-5 text-emerald-600" />
+                                <h4 className="font-semibold text-gray-900">Precio de Venta al Público (MXN)</h4>
                             </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                                {[1, 2, 3, 4, 5].map((tier) => {
-                                    const key = `discount_tier_${tier}` as keyof FormData;
-                                    const value = formData[key] as number;
-                                    const price = calculatedBaseMXN * (1 - value / 100);
-
-                                    return (
-                                        <div key={tier} className="bg-gray-50 rounded-lg p-4 text-center">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Nivel {tier}
-                                            </label>
-                                            <div className="relative mb-2">
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="30"
-                                                    value={value}
-                                                    onChange={(e) => setFormData({ ...formData, [key]: parseInt(e.target.value) })}
-                                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                                                />
-                                            </div>
-                                            <div className="text-lg font-bold text-blue-600">{value}%</div>
-                                            <div className="text-sm text-gray-600 mt-1">
-                                                {formatCurrency(price)}
-                                            </div>
+                            <p className="text-xs text-gray-500 mb-3">
+                                Este es el precio que se asignará a los equipos al momento de instalarlos.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Precio de Venta <span className="text-red-600">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={formData.selling_price}
+                                            onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+                                            className="w-full pl-8 pr-4 py-3 border-2 border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-lg font-semibold"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    {calculatedBaseMXN > 0 && sellingPrice > 0 && (
+                                        <div className={`rounded-lg p-3 text-center ${profitMargin > 0
+                                            ? 'bg-emerald-100 border border-emerald-300'
+                                            : 'bg-red-100 border border-red-300'
+                                            }`}>
+                                            <p className="text-xs text-gray-600 mb-1">Margen de Ganancia</p>
+                                            <p className={`text-xl font-bold ${profitMargin > 0 ? 'text-emerald-700' : 'text-red-700'
+                                                }`}>
+                                                {profitMargin.toFixed(1)}%
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                Ganancia: {formatCurrency(sellingPrice - calculatedBaseMXN)}
+                                            </p>
                                         </div>
-                                    );
-                                })}
+                                    )}
+                                </div>
                             </div>
                         </div>
+
+                        {/* SECCIÓN 4: Niveles de Descuento */}
+                        {sellingPrice > 0 && (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 border-b pb-2">
+                                    <Percent className="w-5 h-5 text-blue-600" />
+                                    Niveles de Descuento para Clientes
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                    {[1, 2, 3, 4, 5].map((tier) => {
+                                        const key = `discount_tier_${tier}` as keyof FormData;
+                                        const value = formData[key] as number;
+                                        const price = sellingPrice * (1 - value / 100);
+
+                                        return (
+                                            <div key={tier} className="bg-gray-50 rounded-lg p-4 text-center">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Nivel {tier}
+                                                </label>
+                                                <div className="relative mb-2">
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="30"
+                                                        value={value}
+                                                        onChange={(e) => setFormData({ ...formData, [key]: parseInt(e.target.value) })}
+                                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                    />
+                                                </div>
+                                                <div className="text-lg font-bold text-blue-600">{value}%</div>
+                                                <div className="text-sm text-gray-600 mt-1">
+                                                    {formatCurrency(price)}
+                                                </div>
+                                                {calculatedBaseMXN > 0 && (
+                                                    <>
+                                                        <div className={`text-xs mt-1 ${price > calculatedBaseMXN ? 'text-emerald-600' : 'text-red-500'
+                                                            }`}>
+                                                            Margen: {((price - calculatedBaseMXN) / calculatedBaseMXN * 100).toFixed(1)}%
+                                                        </div>
+                                                        <div className={`text-xs ${price > calculatedBaseMXN ? 'text-emerald-500' : 'text-red-400'
+                                                            }`}>
+                                                            Ganancia: {formatCurrency(price - calculatedBaseMXN)}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* SECCIÓN 5: Inventario */}
                         {showStockFields && (

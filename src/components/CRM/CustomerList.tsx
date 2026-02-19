@@ -418,8 +418,8 @@ export function CustomerList() {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all ${showFilters || hasActiveFilters()
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
           >
             <Filter className="w-4 h-4" />
@@ -450,8 +450,8 @@ export function CustomerList() {
             <button
               onClick={() => setFilters({ ...filters, accountType: 'all' })}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filters.accountType === 'all'
-                  ? 'bg-gray-600 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                ? 'bg-gray-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
                 }`}
             >
               Todas
@@ -459,8 +459,8 @@ export function CustomerList() {
             <button
               onClick={() => setFilters({ ...filters, accountType: 'master' })}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${filters.accountType === 'master'
-                  ? 'bg-yellow-600 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                ? 'bg-yellow-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
                 }`}
             >
               <Star className="w-3 h-3" />
@@ -469,8 +469,8 @@ export function CustomerList() {
             <button
               onClick={() => setFilters({ ...filters, accountType: 'consolidated' })}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${filters.accountType === 'consolidated'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
                 }`}
             >
               <Link className="w-3 h-3" />
@@ -479,8 +479,8 @@ export function CustomerList() {
             <button
               onClick={() => setFilters({ ...filters, accountType: 'normal' })}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${filters.accountType === 'normal'
-                  ? 'bg-gray-600 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                ? 'bg-gray-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
                 }`}
             >
               <Users className="w-3 h-3" />
@@ -827,11 +827,11 @@ export function CustomerList() {
                               <span>{customer.phone}</span>
                             </div>
                           )}
-                          {(customer.address || customer.street) && (
+                          {customer.address && (
                             <div className="flex items-center gap-1">
                               <MapPin className="w-4 h-4" />
                               <span className="truncate max-w-xs">
-                                {customer.street || customer.address}
+                                {customer.address}
                                 {customer.neighborhood && `, ${customer.neighborhood}`}
                               </span>
                             </div>
@@ -841,12 +841,12 @@ export function CustomerList() {
                         <div className="flex flex-wrap gap-2">
                           {customer.service_plan && (
                             <span className={`px-2 py-1 rounded text-xs font-medium ${customer.service_plan === 'premium'
-                                ? 'bg-purple-600 text-white'
-                                : customer.service_plan === 'basico' || customer.service_plan === 'clasico'
-                                  ? 'bg-orange-600 text-white'
-                                  : customer.service_plan?.includes('plus') || customer.service_plan?.includes('comunicador')
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-800'
+                              ? 'bg-purple-600 text-white'
+                              : customer.service_plan === 'basico' || customer.service_plan === 'clasico'
+                                ? 'bg-orange-600 text-white'
+                                : customer.service_plan?.includes('plus') || customer.service_plan?.includes('comunicador')
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-200 text-gray-800'
                               }`}>
                               {customer.service_plan.toUpperCase()}
                             </span>
@@ -861,10 +861,10 @@ export function CustomerList() {
 
                           {customer.billing_type && (
                             <span className={`px-2 py-1 rounded text-xs font-medium ${customer.billing_type === 'factura'
-                                ? 'bg-orange-600 text-white'
-                                : customer.billing_type === 'ticket'
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-600 text-white'
+                              ? 'bg-orange-600 text-white'
+                              : customer.billing_type === 'ticket'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-600 text-white'
                               }`}>
                               <CreditCard className="w-3 h-3 inline mr-1" />
                               {customer.billing_type.toUpperCase()}
@@ -903,8 +903,8 @@ export function CustomerList() {
                     <button
                       onClick={() => setSelectedCustomerId(customer.id)}
                       className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors ${customer.is_consolidated_account
-                          ? 'bg-white text-gray-900 hover:bg-gray-100'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                        ? 'bg-white text-gray-900 hover:bg-gray-100'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
                         }`}
                     >
                       <Eye className="w-4 h-4" />

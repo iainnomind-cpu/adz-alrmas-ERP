@@ -2,10 +2,12 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   FileText, AlertTriangle, CheckCircle2, Clock, DollarSign, Plus,
-  Search, Filter, X, Eye, Calendar, CreditCard, Receipt, Smartphone,
-  Building, Users, TrendingUp, FileCheck, Download
+  Search, Filter, X, Eye, Calendar, Smartphone,
+  Building, Users, TrendingUp, Ban
 } from 'lucide-react';
+// Force refresh
 import { InvoiceDetailModal } from './InvoiceDetailModal';
+import { NewDocumentModal } from './NewDocumentModal';
 
 interface BillingDocument {
   id: string;
@@ -47,6 +49,7 @@ export function InvoiceList() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showNewDocumentModal, setShowNewDocumentModal] = useState(false);
 
   const observerTarget = useRef<HTMLDivElement>(null);
   const PAGE_SIZE = 50;
@@ -109,10 +112,12 @@ export function InvoiceList() {
 
       if (error) throw error;
 
-      const pending = data?.filter(d => d.payment_status === 'pending') || [];
-      const overdue = data?.filter(d => d.payment_status === 'overdue') || [];
-      const paid = data?.filter(d => d.payment_status === 'paid') || [];
-      const partial = data?.filter(d => d.payment_status === 'partial') || [];
+      const documents = data as any[] || [];
+
+      const pending = documents.filter(d => d.payment_status === 'pending');
+      const overdue = documents.filter(d => d.payment_status === 'overdue');
+      const paid = documents.filter(d => d.payment_status === 'paid');
+      const partial = documents.filter(d => d.payment_status === 'partial');
 
       setStats({
         totalPending: pending.reduce((sum, d) => sum + (d.balance || 0), 0),
@@ -177,9 +182,9 @@ export function InvoiceList() {
       if (error) throw error;
 
       if (reset) {
-        setDocuments(data || []);
+        setDocuments(data as any[] || []);
       } else {
-        setDocuments(prev => [...prev, ...(data || [])]);
+        setDocuments(prev => [...prev, ...(data as any[] || [])]);
       }
 
       setPage(pageNum);
@@ -304,12 +309,12 @@ export function InvoiceList() {
 
   const hasActiveFilters = () => {
     return filters.searchTerm !== '' ||
-           filters.documentType !== 'all' ||
-           filters.paymentStatus !== 'all' ||
-           filters.dateFrom !== '' ||
-           filters.dateTo !== '' ||
-           filters.minAmount !== '' ||
-           filters.maxAmount !== '';
+      filters.documentType !== 'all' ||
+      filters.paymentStatus !== 'all' ||
+      filters.dateFrom !== '' ||
+      filters.dateTo !== '' ||
+      filters.minAmount !== '' ||
+      filters.maxAmount !== '';
   };
 
   const getDaysOverdue = (dueDate: string | null): number => {
@@ -350,6 +355,7 @@ export function InvoiceList() {
           Facturación y Tickets
         </h2>
         <button
+          onClick={() => setShowNewDocumentModal(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium"
         >
           <Plus className="w-5 h-5" />
@@ -400,11 +406,10 @@ export function InvoiceList() {
       <div className="flex gap-2 items-center flex-wrap">
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all ${
-            showFilters || hasActiveFilters()
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
+          className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all ${showFilters || hasActiveFilters()
+            ? 'bg-blue-600 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
         >
           <Filter className="w-4 h-4" />
           Filtros Avanzados
@@ -569,15 +574,21 @@ export function InvoiceList() {
                           {getDocumentTypeLabel(doc.document_type)}
                         </span>
 
-                        <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${getStatusColor(doc.payment_status)}`}>
-                          {getStatusIcon(doc.payment_status)}
-                          {getStatusLabel(doc.payment_status)}
-                        </span>
+                        {doc.cancellation_reason ? (
+                          <span className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1 bg-red-100 text-red-800 border-red-200">
+                            <Ban className="w-3 h-3" />
+                            Cancelado
+                          </span>
+                        ) : (
+                          <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${getStatusColor(doc.payment_status)}`}>
+                            {getStatusIcon(doc.payment_status)}
+                            {getStatusLabel(doc.payment_status)}
+                          </span>
+                        )}
 
-                        {doc.due_date && (
-                          <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${
-                            daysOverdue > 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-                          }`}>
+                        {doc.due_date && !doc.cancellation_reason && doc.payment_status !== 'paid' && (
+                          <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${daysOverdue > 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
                             <Calendar className="w-3 h-3" />
                             Vence: {new Date(doc.due_date).toLocaleDateString()}
                             {daysOverdue > 0 && ` (+${daysOverdue}d)`}
@@ -639,6 +650,15 @@ export function InvoiceList() {
         isOpen={showDetailModal}
         onClose={handleCloseModal}
         documentId={selectedDocumentId}
+      />
+
+      <NewDocumentModal
+        isOpen={showNewDocumentModal}
+        onClose={() => setShowNewDocumentModal(false)}
+        onSuccess={() => {
+          loadDocuments(0, true);
+          loadStats();
+        }}
       />
     </div>
   );
