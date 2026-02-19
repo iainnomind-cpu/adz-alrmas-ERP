@@ -221,8 +221,6 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 model: formData.model || null,
                 category: formData.category,
                 currency: formData.currency,
-                supplier_list_price: formData.supplier_list_price ? parseFloat(formData.supplier_list_price) : null,
-                supplier_discount_percentage: parseFloat(formData.supplier_discount_percentage) || 0,
                 exchange_rate: parseFloat(formData.exchange_rate) || 21,
                 base_price_mxn: sellingPrice > 0 ? sellingPrice : calculatedBaseMXN,
                 stock_quantity: showStockFields ? parseInt(formData.stock_quantity) || 0 : 0,
