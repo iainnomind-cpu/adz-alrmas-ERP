@@ -223,8 +223,6 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 currency: formData.currency,
                 supplier_list_price: formData.supplier_list_price ? parseFloat(formData.supplier_list_price) : null,
                 supplier_discount_percentage: parseFloat(formData.supplier_discount_percentage) || 0,
-                cost_price_usd: formData.currency === 'USD' ? parseFloat(formData.cost_price_usd) : null,
-                cost_price_mxn: formData.currency === 'MXN' ? parseFloat(formData.cost_price_mxn) : null,
                 exchange_rate: parseFloat(formData.exchange_rate) || 21,
                 base_price_mxn: sellingPrice > 0 ? sellingPrice : calculatedBaseMXN,
                 discount_tier_1: formData.discount_tier_1,
