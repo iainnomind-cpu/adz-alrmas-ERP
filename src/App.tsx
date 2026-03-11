@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from './contexts/AuthContext';
+import { usePermissions } from './contexts/PermissionsContext';
 import { useAutoRescheduling } from './hooks/useAutoRescheduling';
 import { LoginForm } from './components/Auth/LoginForm';
 import { MainLayout } from './components/Layout/MainLayout';
@@ -11,9 +12,26 @@ import { AssetList } from './components/Assets/AssetList';
 import { InventoryModule } from './components/Inventory/InventoryModule';
 import { SettingsModule } from './components/Settings/SettingsModule';
 import { CalendarView } from './components/Calendar/CalendarView';
+import { ShieldAlert } from 'lucide-react';
+
+// Map tab IDs to permission module names
+const tabToModuleMap: Record<string, string> = {
+  'dashboard': 'dashboard',
+  'customers': 'customers',
+  'customers-alarma': 'customers',
+  'customers-cctv': 'customers',
+  'customers-acceso': 'customers',
+  'service-orders': 'service_orders',
+  'calendar': 'service_orders',
+  'invoices': 'invoices',
+  'assets': 'assets',
+  'inventory': 'inventory',
+  'settings': 'settings',
+};
 
 function App() {
   const { user, loading } = useAuth();
+  const { hasModuleAccess } = usePermissions();
   useAutoRescheduling(!!user);
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -29,12 +47,35 @@ function App() {
     return <LoginForm />;
   }
 
+  const AccessDenied = () => (
+    <div className="flex flex-col items-center justify-center h-96 text-center">
+      <div className="p-4 bg-red-100 rounded-full mb-4">
+        <ShieldAlert className="w-12 h-12 text-red-500" />
+      </div>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Acceso Denegado</h2>
+      <p className="text-gray-600 max-w-md">
+        No tienes permisos para acceder a este módulo. Contacta al administrador si necesitas acceso.
+      </p>
+    </div>
+  );
+
   const renderContent = () => {
+    // Check permission for the active module
+    const module = tabToModuleMap[activeTab];
+    if (module && module !== 'dashboard' && !hasModuleAccess(module)) {
+      return <AccessDenied />;
+    }
+
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
       case 'customers':
-        return <CustomerList />;
+      case 'customers-alarma':
+        return <CustomerList systemType="Alarma" />;
+      case 'customers-cctv':
+        return <CustomerList systemType="CCTV" />;
+      case 'customers-acceso':
+        return <CustomerList systemType="Control de Acceso" />;
       case 'service-orders':
         return <ServiceOrderList />;
       case 'calendar':
@@ -60,3 +101,4 @@ function App() {
 }
 
 export default App;
+

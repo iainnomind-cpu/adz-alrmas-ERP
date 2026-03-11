@@ -59,10 +59,14 @@ interface CustomerFilters {
   dateFrom: string;
   dateTo: string;
   isMasterAccount: 'all' | 'yes' | 'no';
-  accountType: 'all' | 'normal' | 'master' | 'consolidated';
+  accountType: 'all' | 'normal' | 'master' | 'consolidated' | 'corporativo';
 }
 
-export function CustomerList() {
+interface CustomerListProps {
+  systemType?: string;
+}
+
+export function CustomerList({ systemType }: CustomerListProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
@@ -108,7 +112,7 @@ export function CustomerList() {
     setPage(0);
     setHasMore(true);
     loadCustomers(0, true);
-  }, [filters]);
+  }, [filters, systemType]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -174,6 +178,10 @@ export function CustomerList() {
 
       if (filters.searchTerm) {
         query = query.or(`name.ilike.%${filters.searchTerm}%,business_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%,address.ilike.%${filters.searchTerm}%,street.ilike.%${filters.searchTerm}%,neighborhood.ilike.%${filters.searchTerm}%`);
+      }
+
+      if (systemType) {
+        query = query.eq('system_type', systemType);
       }
 
       if (filters.status !== 'all') {
@@ -486,6 +494,16 @@ export function CustomerList() {
               <Users className="w-3 h-3" />
               Normales
             </button>
+            <button
+              onClick={() => setFilters({ ...filters, accountType: 'corporativo' })}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${filters.accountType === 'corporativo'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                }`}
+            >
+              <Building2 className="w-3 h-3" />
+              Corporativos
+            </button>
           </div>
         </div>
 
@@ -651,6 +669,7 @@ export function CustomerList() {
                   <option value="normal">Normal</option>
                   <option value="master">Maestra</option>
                   <option value="consolidated">Consolidada</option>
+                  <option value="corporativo">Corporativo</option>
                 </select>
               </div>
 
@@ -949,6 +968,7 @@ export function CustomerList() {
       {showNewCustomerForm && (
         <NewCustomerForm
           customer={customerToEdit as any}
+          defaultSystemType={systemType || 'Alarma'}
           onClose={() => {
             setShowNewCustomerForm(false);
             setCustomerToEdit(undefined);

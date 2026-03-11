@@ -33,9 +33,20 @@ interface MaterialToAdd {
 }
 
 const EQUIPMENT_CATEGORIES = ['alarm', 'panel', 'sensor', 'keyboard', 'communicator', 'camera', 'dispositivo', 'device'];
+const SERVICE_CATEGORIES = ['service', 'servicio', 'installation', 'instalacion', 'maintenance', 'mantenimiento', 'monitoring', 'monitoreo', 'labor', 'mano_obra'];
 
 const isEquipment = (category: string): boolean => {
   return EQUIPMENT_CATEGORIES.includes(category.toLowerCase());
+};
+
+const isService = (category: string): boolean => {
+  return SERVICE_CATEGORIES.includes(category.toLowerCase());
+};
+
+const getItemGroup = (category: string): 'dispositivos' | 'servicios' | 'materiales' => {
+  if (isEquipment(category)) return 'dispositivos';
+  if (isService(category)) return 'servicios';
+  return 'materiales';
 };
 
 const getEquipmentCategoryLabel = (category: string): string => {
@@ -305,12 +316,44 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   >
                     <option value="">Seleccionar producto</option>
-                    {inventoryItems.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} - {item.code} (Stock: {item.stock_quantity})
-                        {isEquipment(item.category) ? ' [EQUIPO]' : ''}
-                      </option>
-                    ))}
+                    {(() => {
+                      const grouped = {
+                        dispositivos: inventoryItems.filter(i => getItemGroup(i.category) === 'dispositivos'),
+                        materiales: inventoryItems.filter(i => getItemGroup(i.category) === 'materiales'),
+                        servicios: inventoryItems.filter(i => getItemGroup(i.category) === 'servicios'),
+                      };
+                      return (
+                        <>
+                          {grouped.dispositivos.length > 0 && (
+                            <optgroup label="🛡️ Dispositivos">
+                              {grouped.dispositivos.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} - {item.code} (Stock: {item.stock_quantity})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {grouped.materiales.length > 0 && (
+                            <optgroup label="📦 Materiales">
+                              {grouped.materiales.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} - {item.code} (Stock: {item.stock_quantity})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {grouped.servicios.length > 0 && (
+                            <optgroup label="🛠️ Servicios">
+                              {grouped.servicios.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} - {item.code} (Stock: {item.stock_quantity})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      );
+                    })()}
                   </select>
                   {itemIsEquipment && selectedItem && (
                     <div className="mt-2 flex items-center gap-2">

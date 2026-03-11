@@ -26,6 +26,7 @@ interface NewCustomerFormProps {
   onClose: () => void;
   onSuccess: () => void;
   customer?: Partial<CustomerInsert> & { id?: string };
+  defaultSystemType?: string;
 }
 
 interface MasterAccount {
@@ -34,7 +35,7 @@ interface MasterAccount {
   account_number: number;
 }
 
-export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFormProps) {
+export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemType }: NewCustomerFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [masterAccounts, setMasterAccounts] = useState<MasterAccount[]>([]);
@@ -53,6 +54,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
     neighborhood: customer?.neighborhood ?? '',
     city: customer?.city ?? '',
     state: customer?.state ?? '',
+    system_type: customer?.system_type || defaultSystemType || 'Alarma',
     customer_type: customer?.customer_type || 'casa',
     communication_tech: customer?.communication_tech || 'telefono',
     monitoring_plan: customer?.monitoring_plan || '',
@@ -274,6 +276,24 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de Sistema
+                </label>
+                <select
+                  value={formData.system_type || 'Alarma'}
+                  onChange={(e) => handleChange('system_type', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Alarma">Alarma</option>
+                  <option value="CCTV">CCTV</option>
+                  <option value="Control de Acceso">Control de Acceso</option>
+                  <option value="Control de Asistencia">Control de Asistencia</option>
+                  <option value="Video Portero">Video Portero</option>
+                  <option value="Red">Red</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tipo de Cliente
                 </label>
                 <select
@@ -317,6 +337,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                   <option value="telefono">Teléfono</option>
                   <option value="celular">Celular</option>
                   <option value="dual">Dual</option>
+                  <option value="ip">IP</option>
                 </select>
               </div>
 
@@ -331,6 +352,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                 >
                   <option value="puntual">Puntual</option>
                   <option value="15_dias">15 Días</option>
+                  <option value="30_dias">30 Días</option>
                   <option value="moroso">Moroso</option>
                 </select>
               </div>
@@ -347,6 +369,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                   <option value="normal">Normal (1 servicio)</option>
                   <option value="master">Maestra (Múltiples servicios)</option>
                   <option value="consolidated">Consolidada (Vinculada a maestra)</option>
+                  <option value="corporativo">Corporativo</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   Normal: 1 servicio | Maestra: 2+ servicios | Consolidada: No se factura directamente
@@ -423,8 +446,10 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                   onChange={(e) => handleChange('billing_preference', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="electronic">Electrónica</option>
-                  <option value="paper">Papel</option>
+                  <option value="factura_credito">Factura Crédito</option>
+                  <option value="factura_contado">Factura Contado</option>
+                  <option value="ticket_tf">Ticket TF</option>
+                  <option value="ticket_v">Ticket V</option>
                 </select>
               </div>
 
@@ -439,12 +464,13 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                 >
                   <option value="monthly">Mensual</option>
                   <option value="quarterly">Trimestral</option>
+                  <option value="semiannual">Semestral</option>
                   <option value="annual">Anual</option>
                 </select>
               </div>
 
               <div className="md:col-span-2 space-y-4">
-                <h3 className="font-medium text-gray-900 border-b pb-2">Dirección</h3>
+                <h3 className="font-medium text-gray-900 border-b pb-2">Domicilio Monitoreado</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -542,13 +568,21 @@ export function NewCustomerForm({ onClose, onSuccess, customer }: NewCustomerFor
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Plan de Monitoreo
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.monitoring_plan || ''}
                   onChange={(e) => handleChange('monitoring_plan', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Ej: Basic, Premium, etc."
-                />
+                >
+                  <option value="">Sin plan</option>
+                  <option value="plus_clasico">Plus Clásico</option>
+                  <option value="plus_premium">Plus Premium</option>
+                  <option value="premium_com_15">Premium Com 15</option>
+                  <option value="premium_com_20">Premium Com 20</option>
+                  <option value="plus_com_15">Plus Com 15</option>
+                  <option value="plus_com_20">Plus Com 20</option>
+                  <option value="medical_premium">Medical Premium</option>
+                  <option value="boton_panico">Botón de Pánico</option>
+                </select>
               </div>
 
               <div>

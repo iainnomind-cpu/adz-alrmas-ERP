@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Users, Plus, Edit2, Trash2, UserCheck, Clock } from 'lucide-react';
 import { NewUserForm } from './NewUserForm';
+import { EditUserForm } from './EditUserForm';
 
 interface UserProfile {
   id: string;
@@ -9,10 +10,13 @@ interface UserProfile {
   phone: string | null;
   is_active: boolean;
   created_at: string;
-  roles: {
-    name: string;
-    description: string;
-  } | null;
+  user_roles: Array<{
+    role_id: string;
+    roles: {
+      name: string;
+      description: string;
+    } | null;
+  }> | null;
   technician_details: Array<{
     specialty: string | null;
     hourly_rate: number;
@@ -25,6 +29,7 @@ export function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('active');
 
   useEffect(() => {
@@ -32,25 +37,55 @@ export function UserManagement() {
   }, [filter]);
 
   const loadUsers = async () => {
-    let query = supabase
-      .from('user_profiles')
-      .select(`
-        *,
-        roles (name, description),
-        technician_details (specialty, hourly_rate, work_schedule_start, work_schedule_end)
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      // 1. Fetch user profiles
+      let profileQuery = (supabase
+        .from('user_profiles') as any)
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (filter !== 'all') {
-      query = query.eq('is_active', filter === 'active');
-    }
+      if (filter !== 'all') {
+        profileQuery = profileQuery.eq('is_active', filter === 'active');
+      }
 
-    const { data, error } = await query;
+      const { data: profiles, error: profileError } = await profileQuery;
+      if (profileError) throw profileError;
 
-    if (error) {
-      console.error('Error loading users:', error);
-    } else {
-      setUsers(data || []);
+      if (!profiles || profiles.length === 0) {
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      const userIds = (profiles as any[]).map((p: any) => p.id);
+
+      // 2. Fetch user_roles + roles separately
+      const { data: userRolesData } = await (supabase
+        .from('user_roles') as any)
+        .select('user_id, role_id, roles (name, description)')
+        .in('user_id', userIds);
+
+      // 3. Fetch technician_details separately
+      const { data: techDetails } = await (supabase
+        .from('technician_details') as any)
+        .select('user_profile_id, specialty, hourly_rate, work_schedule_start, work_schedule_end')
+        .in('user_profile_id', userIds);
+
+      // 4. Merge data
+      const merged: UserProfile[] = (profiles as any[]).map((profile: any) => {
+        const roles = (userRolesData || []).filter((ur: any) => ur.user_id === profile.id);
+        const techInfo = (techDetails || []).filter((td: any) => td.user_profile_id === profile.id);
+
+        return {
+          ...profile,
+          user_roles: roles.length > 0 ? roles : null,
+          technician_details: techInfo.length > 0 ? techInfo : null,
+        };
+      });
+
+      setUsers(merged);
+    } catch (err) {
+      console.error('Error loading users:', err);
     }
     setLoading(false);
   };
@@ -102,11 +137,10 @@ export function UserManagement() {
             <button
               key={type}
               onClick={() => setFilter(type)}
-              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-                filter === type
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${filter === type
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
             >
               {type === 'all' ? 'Todos' : type === 'active' ? 'Activos' : 'Inactivos'}
             </button>
@@ -130,9 +164,8 @@ export function UserManagement() {
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${
-                  user.is_active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-                }`}>
+                <div className={`p-2 rounded-lg ${user.is_active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                  }`}>
                   <Users className="w-5 h-5" />
                 </div>
                 <div>
@@ -144,10 +177,10 @@ export function UserManagement() {
               </div>
             </div>
 
-            {user.roles && (
+            {user.user_roles && user.user_roles.length > 0 && user.user_roles[0].roles && (
               <div className="mb-3">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.roles.name)}`}>
-                  {getRoleLabel(user.roles.name)}
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.user_roles[0].roles.name)}`}>
+                  {getRoleLabel(user.user_roles[0].roles.name)}
                 </span>
               </div>
             )}
@@ -176,12 +209,18 @@ export function UserManagement() {
 
             <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
               <button
+                onClick={() => setEditingUser(user)}
+                className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center gap-1"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                Editar
+              </button>
+              <button
                 onClick={() => toggleUserStatus(user.id, user.is_active)}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  user.is_active
-                    ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                    : 'bg-green-50 text-green-600 hover:bg-green-100'
-                }`}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${user.is_active
+                  ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                  : 'bg-green-50 text-green-600 hover:bg-green-100'
+                  }`}
               >
                 {user.is_active ? 'Desactivar' : 'Activar'}
               </button>
@@ -203,6 +242,25 @@ export function UserManagement() {
           onSuccess={() => {
             loadUsers();
             setShowNewForm(false);
+          }}
+        />
+      )}
+
+      {editingUser && (
+        <EditUserForm
+          user={{
+            id: editingUser.id,
+            full_name: editingUser.full_name,
+            phone: editingUser.phone,
+            is_active: editingUser.is_active,
+            role_id: editingUser.user_roles?.[0]?.role_id || null,
+            role_name: editingUser.user_roles?.[0]?.roles?.name || null,
+            technician_details: editingUser.technician_details?.[0] || null,
+          }}
+          onClose={() => setEditingUser(null)}
+          onSuccess={() => {
+            loadUsers();
+            setEditingUser(null);
           }}
         />
       )}

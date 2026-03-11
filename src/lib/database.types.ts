@@ -21,6 +21,22 @@ export type Database = {
           installed_by: string | null
           service_order_id: string | null
           status: string
+          is_eol?: boolean
+          eol_reason?: string | null
+          alarm_model?: string | null
+          keyboard_model?: string | null
+          communicator_model?: string | null
+          equipment_category?: string | null
+          brand?: string | null
+          model?: string | null
+          channel_count?: number | null
+          admin_user?: string | null
+          admin_password?: string | null
+          billing_date?: string | null
+          equipment_invoice_number?: string | null
+          related_ticket_numbers?: string | null
+          observations?: string | null
+          has_extended_warranty?: boolean
           created_at: string
           updated_at: string
         }
@@ -35,6 +51,22 @@ export type Database = {
           installed_by?: string | null
           service_order_id?: string | null
           status?: string
+          is_eol?: boolean
+          eol_reason?: string | null
+          alarm_model?: string | null
+          keyboard_model?: string | null
+          communicator_model?: string | null
+          equipment_category?: string | null
+          brand?: string | null
+          model?: string | null
+          channel_count?: number | null
+          admin_user?: string | null
+          admin_password?: string | null
+          billing_date?: string | null
+          equipment_invoice_number?: string | null
+          related_ticket_numbers?: string | null
+          observations?: string | null
+          has_extended_warranty?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -49,6 +81,22 @@ export type Database = {
           installed_by?: string | null
           service_order_id?: string | null
           status?: string
+          is_eol?: boolean
+          eol_reason?: string | null
+          alarm_model?: string | null
+          keyboard_model?: string | null
+          communicator_model?: string | null
+          equipment_category?: string | null
+          brand?: string | null
+          model?: string | null
+          channel_count?: number | null
+          admin_user?: string | null
+          admin_password?: string | null
+          billing_date?: string | null
+          equipment_invoice_number?: string | null
+          related_ticket_numbers?: string | null
+          observations?: string | null
+          has_extended_warranty?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -325,6 +373,7 @@ export type Database = {
           communication_tech: string
           monitoring_plan: string | null
           status: string
+          system_type: string
           business_name: string | null
           gps_latitude: number | null
           gps_longitude: number | null
@@ -364,6 +413,7 @@ export type Database = {
           communication_tech?: string
           monitoring_plan?: string | null
           status?: string
+          system_type?: string
           business_name?: string | null
           gps_latitude?: number | null
           gps_longitude?: number | null
@@ -400,6 +450,7 @@ export type Database = {
           communication_tech?: string
           monitoring_plan?: string | null
           status?: string
+          system_type?: string
           business_name?: string | null
           gps_latitude?: number | null
           gps_longitude?: number | null

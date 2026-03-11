@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { TechnicianNotifications } from '../Calendar/TechnicianNotifications';
+import { InventoryNotificationsBell } from '../Inventory/InventoryNotificationsBell';
 import {
   LayoutDashboard,
   Users,
@@ -21,9 +23,25 @@ interface MainLayoutProps {
   onTabChange: (tab: string) => void;
 }
 
+// Map sidebar IDs to permission module names
+const sidebarToModuleMap: Record<string, string> = {
+  'dashboard': 'dashboard',
+  'customers-group': 'customers',
+  'customers-alarma': 'customers',
+  'customers-cctv': 'customers',
+  'customers-acceso': 'customers',
+  'service-orders': 'service_orders',
+  'calendar': 'service_orders',
+  'invoices': 'invoices',
+  'assets': 'assets',
+  'inventory': 'inventory',
+  'settings': 'settings',
+};
+
 export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { signOut, user } = useAuth();
+  const { hasModuleAccess, isAdmin } = usePermissions();
 
   const handleSignOut = async () => {
     try {
@@ -33,9 +51,18 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
     }
   };
 
-  const menuItems = [
+  const allMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'customers', label: 'Clientes', icon: Users },
+    {
+      id: 'customers-group',
+      label: 'Clientes',
+      icon: Users,
+      subItems: [
+        { id: 'customers-alarma', label: 'Alarma' },
+        { id: 'customers-cctv', label: 'CCTV' },
+        { id: 'customers-acceso', label: 'Control de Acceso' }
+      ]
+    },
     { id: 'service-orders', label: 'Órdenes de Servicio', icon: Wrench },
     { id: 'calendar', label: 'Calendario', icon: Calendar },
     { id: 'invoices', label: 'Facturación', icon: FileText },
@@ -43,6 +70,15 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
     { id: 'inventory', label: 'Inventario', icon: Package },
     { id: 'settings', label: 'Configuración', icon: Settings }
   ];
+
+  // Filter menu items based on permissions
+  const menuItems = allMenuItems.filter(item => {
+    const module = sidebarToModuleMap[item.id];
+    if (!module) return true; // always show if no mapping
+    if (module === 'dashboard') return true; // dashboard always visible
+    if (module === 'settings') return isAdmin || hasModuleAccess('settings');
+    return hasModuleAccess(module);
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -57,16 +93,14 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
       </div>
 
       <div
-        className={`fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden transition-opacity ${
-          sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+        className={`fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden transition-opacity ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
         onClick={() => setSidebarOpen(false)}
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 transform transition-transform lg:translate-x-0 flex flex-col ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 transform transition-transform lg:translate-x-0 flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-start justify-between gap-3">
@@ -75,6 +109,7 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
               <p className="text-sm text-gray-600 mt-1">Field Service Management</p>
             </div>
             <div className="flex-shrink-0">
+              <InventoryNotificationsBell />
               <TechnicianNotifications />
             </div>
           </div>
@@ -83,6 +118,38 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 min-h-0">
           {menuItems.map((item) => {
             const Icon = item.icon;
+
+            if (item.subItems) {
+              return (
+                <div key={item.id} className="mb-2">
+                  <div className="flex items-center gap-3 px-4 py-2 text-gray-700 font-medium">
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </div>
+                  <div className="ml-9 space-y-1 mt-1">
+                    {item.subItems.map(sub => {
+                      const isActive = activeTab === sub.id || (activeTab === 'customers' && sub.id === 'customers-alarma');
+                      return (
+                        <button
+                          key={sub.id}
+                          onClick={() => {
+                            onTabChange(sub.id);
+                            setSidebarOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all text-sm ${isActive
+                            ? 'bg-blue-50 text-blue-600 font-medium'
+                            : 'text-gray-600 hover:bg-gray-50'
+                            }`}
+                        >
+                          <span>{sub.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
+
             const isActive = activeTab === item.id;
             return (
               <button
@@ -91,11 +158,10 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
                   onTabChange(item.id);
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-600 font-medium'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
+                  ? 'bg-blue-50 text-blue-600 font-medium'
+                  : 'text-gray-700 hover:bg-gray-50'
+                  }`}
               >
                 <Icon className="w-5 h-5" />
                 <span>{item.label}</span>

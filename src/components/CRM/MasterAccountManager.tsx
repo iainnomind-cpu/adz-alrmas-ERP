@@ -65,6 +65,7 @@ export function MasterAccountManager({
   const [relationships, setRelationships] = useState<AccountRelationship[]>([]);
   const [consolidatedAccounts, setConsolidatedAccounts] = useState<any[]>([]);
   const [showAddLocation, setShowAddLocation] = useState(false);
+  const [customLocationType, setCustomLocationType] = useState('');
   const [loading, setLoading] = useState(true);
 
   const [newLocation, setNewLocation] = useState({
@@ -164,7 +165,7 @@ export function MasterAccountManager({
           customer_id: customerId,
           master_account_id: isMasterAccount ? customerId : null,
           location_name: newLocation.location_name,
-          location_type: newLocation.location_type,
+          location_type: newLocation.location_type === 'personalizado' ? customLocationType : newLocation.location_type,
           street_address: `${newLocation.street} ${newLocation.exterior_number ? `#${newLocation.exterior_number}` : ''} ${newLocation.interior_number ? `Int. ${newLocation.interior_number}` : ''}`.trim(),
           neighborhood: newLocation.neighborhood,
           city: newLocation.city,
@@ -183,6 +184,7 @@ export function MasterAccountManager({
       if (error) throw error;
 
       setShowAddLocation(false);
+      setCustomLocationType('');
       setNewLocation({
         location_name: '',
         location_type: 'casa',
@@ -262,6 +264,10 @@ export function MasterAccountManager({
         return <Building2 className="w-5 h-5" />;
       case 'bodega':
         return <Warehouse className="w-5 h-5" />;
+      case 'rancho':
+        return <MapPin className="w-5 h-5" />;
+      case 'pozo_riego':
+        return <MapPin className="w-5 h-5" />;
       default:
         return <MapPin className="w-5 h-5" />;
     }
@@ -274,9 +280,23 @@ export function MasterAccountManager({
       sucursal: 'bg-purple-100 text-purple-800',
       oficina: 'bg-orange-100 text-orange-800',
       bodega: 'bg-gray-100 text-gray-800',
-      otro: 'bg-gray-100 text-gray-800'
+      rancho: 'bg-amber-100 text-amber-800',
+      pozo_riego: 'bg-cyan-100 text-cyan-800',
     };
     return colors[type] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getLocationTypeLabel = (type: string): string => {
+    const labels: Record<string, string> = {
+      casa: 'Casa',
+      negocio: 'Negocio',
+      sucursal: 'Sucursal',
+      oficina: 'Oficina',
+      bodega: 'Bodega',
+      rancho: 'Rancho',
+      pozo_riego: 'Pozo de Riego',
+    };
+    return labels[type] || type;
   };
 
   if (loading) {
@@ -403,13 +423,13 @@ export function MasterAccountManager({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">
-                Nombre de Ubicación *
+                Alias o nombre del negocio *
               </label>
               <input
                 type="text"
                 value={newLocation.location_name}
                 onChange={(e) => setNewLocation({ ...newLocation, location_name: e.target.value })}
-                placeholder="Ej: Casa Principal, Sucursal Centro"
+                placeholder="Ej: Casa Principal, Farmacia Centro, Rancho El Mezquite"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -419,7 +439,10 @@ export function MasterAccountManager({
               <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo *</label>
               <select
                 value={newLocation.location_type}
-                onChange={(e) => setNewLocation({ ...newLocation, location_type: e.target.value })}
+                onChange={(e) => {
+                  setNewLocation({ ...newLocation, location_type: e.target.value });
+                  if (e.target.value !== 'personalizado') setCustomLocationType('');
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="casa">Casa</option>
@@ -427,8 +450,20 @@ export function MasterAccountManager({
                 <option value="sucursal">Sucursal</option>
                 <option value="oficina">Oficina</option>
                 <option value="bodega">Bodega</option>
-                <option value="otro">Otro</option>
+                <option value="rancho">Rancho</option>
+                <option value="pozo_riego">Pozo de Riego</option>
+                <option value="personalizado">✏️ Tipo personalizado...</option>
               </select>
+              {newLocation.location_type === 'personalizado' && (
+                <input
+                  type="text"
+                  value={customLocationType}
+                  onChange={(e) => setCustomLocationType(e.target.value)}
+                  placeholder="Escribe el tipo de ubicación..."
+                  className="w-full mt-2 px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  autoFocus
+                />
+              )}
             </div>
 
             <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -603,236 +638,245 @@ export function MasterAccountManager({
             </button>
             <button
               onClick={handleAddLocation}
-              disabled={!newLocation.location_name || !(newLocation as any).street || !(newLocation as any).exterior_number || !newLocation.city || !newLocation.state}
+              disabled={!newLocation.location_name || !(newLocation as any).street || !(newLocation as any).exterior_number || !newLocation.city || !newLocation.state || (newLocation.location_type === 'personalizado' && !customLocationType.trim())}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Guardar Ubicación
             </button>
           </div>
         </div>
-      )}
+      )
+      }
 
       {/* Main Customer Location Map */}
-      {customerLocation && (customerLocation.latitude || customerLocation.longitude) && (
-        <div className="bg-white rounded-xl p-6 border-2 border-gray-200 mb-6">
-          <h5 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-blue-600" />
-            Ubicación Principal
-          </h5>
-          <LocationMap
-            apiKey="AIzaSyCnpONcNQf8EaAGx0B2wy3Gziyw38WtdHw"
-            address={customerLocation.address}
-            latitude={customerLocation.latitude}
-            longitude={customerLocation.longitude}
-            onLocationChange={() => { }}
-            readOnly={true}
-          />
-          <div className="mt-2 text-sm text-gray-600">
-            <p>{customerLocation.address}</p>
+      {
+        customerLocation && (customerLocation.latitude || customerLocation.longitude) && (
+          <div className="bg-white rounded-xl p-6 border-2 border-gray-200 mb-6">
+            <h5 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-blue-600" />
+              Ubicación Principal
+            </h5>
+            <LocationMap
+              apiKey="AIzaSyCnpONcNQf8EaAGx0B2wy3Gziyw38WtdHw"
+              address={customerLocation.address}
+              latitude={customerLocation.latitude}
+              longitude={customerLocation.longitude}
+              onLocationChange={() => { }}
+              readOnly={true}
+            />
+            <div className="mt-2 text-sm text-gray-600">
+              <p>{customerLocation.address}</p>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {locations.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">No hay ubicaciones registradas</p>
-          <p className="text-gray-500 text-sm mt-2">
-            Agregue ubicaciones para gestionar múltiples servicios
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {locations.map((location, index) => (
-            <div
-              key={location.id}
-              className={`bg-white rounded-xl p-5 border-2 transition-all hover:shadow-md ${location.is_primary
-                ? 'border-blue-400 bg-blue-50/50'
-                : 'border-gray-200'
-                }`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start gap-3 flex-1">
-                  <div className={`p-2 rounded-lg ${location.is_primary ? 'bg-blue-600' : 'bg-gray-600'
-                    }`}>
-                    {getLocationIcon(location.location_type)}
-                    <MapPin className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h5 className="font-bold text-gray-900">{location.location_name}</h5>
-                      {location.is_primary && (
-                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      )}
-                      {index === 0 && isMasterAccount && (
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-bold">
-                          MAESTRA
-                        </span>
-                      )}
-                    </div>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${getLocationTypeColor(location.location_type)}`}>
+      {
+        locations.length === 0 ? (
+          <div className="text-center py-12 bg-gray-50 rounded-lg">
+            <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 text-lg">No hay ubicaciones registradas</p>
+            <p className="text-gray-500 text-sm mt-2">
+              Agregue ubicaciones para gestionar múltiples servicios
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {locations.map((location, index) => (
+              <div
+                key={location.id}
+                className={`bg-white rounded-xl p-5 border-2 transition-all hover:shadow-md ${location.is_primary
+                  ? 'border-blue-400 bg-blue-50/50'
+                  : 'border-gray-200'
+                  }`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className={`p-2 rounded-lg ${location.is_primary ? 'bg-blue-600' : 'bg-gray-600'
+                      }`}>
                       {getLocationIcon(location.location_type)}
-                      {location.location_type}
+                      <MapPin className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h5 className="font-bold text-gray-900">{location.location_name}</h5>
+                        {location.is_primary && (
+                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                        )}
+                        {index === 0 && isMasterAccount && (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-bold">
+                            MAESTRA
+                          </span>
+                        )}
+                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${getLocationTypeColor(location.location_type)}`}>
+                        {getLocationIcon(location.location_type)}
+                        {getLocationTypeLabel(location.location_type)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleDeleteLocation(location.id)}
+                    className="p-1 hover:bg-red-50 rounded-lg transition-colors group"
+                  >
+                    <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
+                  </button>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2 text-gray-600">
+                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-gray-900">{location.street_address}</p>
+                      {location.neighborhood && (
+                        <p className="text-gray-600">{location.neighborhood}</p>
+                      )}
+                      <p className="text-gray-600">
+                        {location.city}, {location.state}
+                        {location.postal_code && ` ${location.postal_code}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {location.contact_name && (
+                    <div className="flex items-center gap-2 text-gray-600 pt-2 border-t border-gray-200">
+                      <Users className="w-4 h-4 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{location.contact_name}</p>
+                        <div className="flex gap-3 text-xs mt-1">
+                          {location.contact_phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              {location.contact_phone}
+                            </span>
+                          )}
+                          {location.contact_email && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="w-3 h-3" />
+                              {location.contact_email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {location.access_instructions && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mt-2">
+                      <div className="flex items-start gap-2">
+                        <Navigation className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-yellow-800">{location.access_instructions}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {location.notes && (
+                    <div className="text-xs text-gray-500 italic pt-2 border-t border-gray-200">
+                      {location.notes}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${location.status === 'active'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                      }`}>
+                      {location.status === 'active' ? 'Activa' : location.status}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {location.service_orders_count} servicios realizados
                     </span>
                   </div>
-                </div>
-
-                <button
-                  onClick={() => handleDeleteLocation(location.id)}
-                  className="p-1 hover:bg-red-50 rounded-lg transition-colors group"
-                >
-                  <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
-                </button>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex items-start gap-2 text-gray-600">
-                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-gray-900">{location.street_address}</p>
-                    {location.neighborhood && (
-                      <p className="text-gray-600">{location.neighborhood}</p>
-                    )}
-                    <p className="text-gray-600">
-                      {location.city}, {location.state}
-                      {location.postal_code && ` ${location.postal_code}`}
-                    </p>
-                  </div>
-                </div>
-
-                {location.contact_name && (
-                  <div className="flex items-center gap-2 text-gray-600 pt-2 border-t border-gray-200">
-                    <Users className="w-4 h-4 flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{location.contact_name}</p>
-                      <div className="flex gap-3 text-xs mt-1">
-                        {location.contact_phone && (
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {location.contact_phone}
-                          </span>
-                        )}
-                        {location.contact_email && (
-                          <span className="flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {location.contact_email}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {location.access_instructions && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mt-2">
-                    <div className="flex items-start gap-2">
-                      <Navigation className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                      <p className="text-xs text-yellow-800">{location.access_instructions}</p>
-                    </div>
-                  </div>
-                )}
-
-                {location.notes && (
-                  <div className="text-xs text-gray-500 italic pt-2 border-t border-gray-200">
-                    {location.notes}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${location.status === 'active'
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-800'
-                    }`}>
-                    {location.status === 'active' ? 'Activa' : location.status}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {location.service_orders_count} servicios realizados
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {isMasterAccount && consolidatedAccounts.length > 0 && (
-        <div className="mt-6 bg-blue-50 rounded-xl p-6 border-2 border-blue-200">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-              <LinkIcon className="w-5 h-5 text-blue-600" />
-              Cuentas Consolidadas ({consolidatedAccounts.length})
-            </h4>
-            <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
-              Facturación unificada
-            </span>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {consolidatedAccounts.map(account => (
-              <div
-                key={account.id}
-                className="bg-white rounded-lg p-4 border-2 border-blue-200 hover:border-blue-400 transition-colors"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h5 className="font-bold text-gray-900 mb-1">{account.name}</h5>
-
-                    {account.branch_name && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                        <Building className="w-4 h-4 text-purple-600" />
-                        <span>{account.branch_name}</span>
-                        {account.is_single_branch && (
-                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
-                            Única
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <p className="text-xs text-gray-500 font-mono">
-                      Cuenta #{account.account_number}
-                    </p>
-                  </div>
-
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold whitespace-nowrap">
-                    Consolidada
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${account.status === 'active'
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-800'
-                    }`}>
-                    {account.status === 'active' ? 'Activa' : account.status}
-                  </span>
-
-                  <span className="text-xs text-gray-500">
-                    Desde {new Date(account.created_at).toLocaleDateString('es-MX')}
-                  </span>
                 </div>
               </div>
             ))}
           </div>
+        )
+      }
 
-          <div className="mt-4 bg-blue-100 border border-blue-300 rounded-lg p-3">
-            <p className="text-xs text-blue-800">
-              <strong>Nota:</strong> Estas cuentas no generan facturas individuales.
-              Toda la facturación se consolida en esta cuenta maestra.
+      {
+        isMasterAccount && consolidatedAccounts.length > 0 && (
+          <div className="mt-6 bg-blue-50 rounded-xl p-6 border-2 border-blue-200">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                <LinkIcon className="w-5 h-5 text-blue-600" />
+                Cuentas Consolidadas ({consolidatedAccounts.length})
+              </h4>
+              <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+                Facturación unificada
+              </span>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {consolidatedAccounts.map(account => (
+                <div
+                  key={account.id}
+                  className="bg-white rounded-lg p-4 border-2 border-blue-200 hover:border-blue-400 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h5 className="font-bold text-gray-900 mb-1">{account.name}</h5>
+
+                      {account.branch_name && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                          <Building className="w-4 h-4 text-purple-600" />
+                          <span>{account.branch_name}</span>
+                          {account.is_single_branch && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                              Única
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-gray-500 font-mono">
+                        Cuenta #{account.account_number}
+                      </p>
+                    </div>
+
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold whitespace-nowrap">
+                      Consolidada
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${account.status === 'active'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                      }`}>
+                      {account.status === 'active' ? 'Activa' : account.status}
+                    </span>
+
+                    <span className="text-xs text-gray-500">
+                      Desde {new Date(account.created_at).toLocaleDateString('es-MX')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 bg-blue-100 border border-blue-300 rounded-lg p-3">
+              <p className="text-xs text-blue-800">
+                <strong>Nota:</strong> Estas cuentas no generan facturas individuales.
+                Toda la facturación se consolida en esta cuenta maestra.
+              </p>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        isMasterAccount && consolidatedAccounts.length === 0 && (
+          <div className="mt-6 bg-gray-50 rounded-lg p-6 text-center border-2 border-dashed border-gray-300">
+            <LinkIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-gray-600 font-medium">No hay cuentas consolidadas vinculadas</p>
+            <p className="text-gray-500 text-sm mt-1">
+              Las cuentas consolidadas se crean desde el formulario de nuevo cliente
             </p>
           </div>
-        </div>
-      )}
-
-      {isMasterAccount && consolidatedAccounts.length === 0 && (
-        <div className="mt-6 bg-gray-50 rounded-lg p-6 text-center border-2 border-dashed border-gray-300">
-          <LinkIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600 font-medium">No hay cuentas consolidadas vinculadas</p>
-          <p className="text-gray-500 text-sm mt-1">
-            Las cuentas consolidadas se crean desde el formulario de nuevo cliente
-          </p>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

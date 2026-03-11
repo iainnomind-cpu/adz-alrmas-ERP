@@ -3,10 +3,12 @@ import { supabase } from '../../lib/supabase';
 import {
   TrendingUp,
   TrendingDown,
+  ArrowRightLeft,
   Package,
   Wrench,
   Calendar,
-  User
+  User,
+  MapPin
 } from 'lucide-react';
 
 interface Transaction {
@@ -18,6 +20,9 @@ interface Transaction {
   notes: string | null;
   created_at: string;
   service_order_id: string | null;
+  from_location_id: string | null;
+  to_location_id: string | null;
+  performed_by: string | null;
   price_list: {
     code: string;
     name: string;
@@ -29,30 +34,58 @@ interface Transaction {
   } | null;
 }
 
+interface LocationMap {
+  [key: string]: string;
+}
+
+interface UserMap {
+  [key: string]: string;
+}
+
 export function StockMovements() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'purchase' | 'usage'>('all');
+  const [filter, setFilter] = useState<'all' | 'purchase' | 'usage' | 'transfer'>('all');
+  const [locationNames, setLocationNames] = useState<LocationMap>({});
+  const [userNames, setUserNames] = useState<UserMap>({});
 
   useEffect(() => {
-    loadTransactions();
+    loadData();
   }, [filter]);
 
-  const loadTransactions = async () => {
-    let query = supabase
-      .from('inventory_transactions')
+  const loadData = async () => {
+    setLoading(true);
+
+    // Load locations for name mapping
+    const { data: locsData } = await (supabase.from('inventory_locations') as any)
+      .select('id, name');
+    const locMap: LocationMap = {};
+    (locsData || []).forEach((l: any) => { locMap[l.id] = l.name; });
+    setLocationNames(locMap);
+
+    // Load user profiles for name mapping
+    const { data: usersData } = await (supabase.from('user_profiles') as any)
+      .select('id, full_name');
+    const uMap: UserMap = {};
+    (usersData || []).forEach((u: any) => { uMap[u.id] = u.full_name; });
+    setUserNames(uMap);
+
+    // Load transactions
+    let query = (supabase.from('inventory_transactions') as any)
       .select(`
         *,
         price_list (code, name, brand, model),
         inventory_suppliers (name)
       `)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (filter === 'purchase') {
       query = query.in('transaction_type', ['purchase', 'adjustment_in', 'return']);
     } else if (filter === 'usage') {
       query = query.in('transaction_type', ['usage', 'adjustment_out', 'damage', 'loss']);
+    } else if (filter === 'transfer') {
+      query = query.eq('transaction_type', 'transfer');
     }
 
     const { data, error } = await query;
@@ -60,13 +93,13 @@ export function StockMovements() {
     if (error) {
       console.error('Error loading transactions:', error);
     } else {
-      // Safely map data even if price_list is null (though should not happen after migration)
       setTransactions(data || []);
     }
     setLoading(false);
   };
 
   const getTransactionIcon = (type: string) => {
+    if (type === 'transfer') return <ArrowRightLeft className="w-5 h-5 text-blue-600" />;
     if (['purchase', 'adjustment_in', 'return'].includes(type)) {
       return <TrendingUp className="w-5 h-5 text-green-600" />;
     }
@@ -74,6 +107,7 @@ export function StockMovements() {
   };
 
   const getTransactionColor = (type: string) => {
+    if (type === 'transfer') return 'bg-blue-50 border-blue-200';
     if (['purchase', 'adjustment_in', 'return'].includes(type)) {
       return 'bg-green-50 border-green-200';
     }
@@ -83,7 +117,8 @@ export function StockMovements() {
   const getTransactionLabel = (type: string) => {
     const labels: Record<string, string> = {
       purchase: 'Compra',
-      usage: 'Uso en Servicio',
+      usage: 'Uso en Campo',
+      transfer: 'Transferencia',
       adjustment_in: 'Ajuste Entrada',
       adjustment_out: 'Ajuste Salida',
       return: 'Devolución',
@@ -104,27 +139,29 @@ export function StockMovements() {
   return (
     <div className="space-y-4">
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {(['all', 'purchase', 'usage'] as const).map((type) => (
+        {(['all', 'purchase', 'usage', 'transfer'] as const).map((type) => (
           <button
             key={type}
             onClick={() => setFilter(type)}
             className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${filter === type
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
           >
-            {type === 'all' ? 'Todos' : type === 'purchase' ? 'Entradas' : 'Salidas'}
+            {type === 'all' ? 'Todos' : type === 'purchase' ? 'Entradas' : type === 'usage' ? 'Salidas' : 'Transferencias'}
           </button>
         ))}
       </div>
 
       <div className="space-y-3">
         {transactions.map((transaction) => {
-          // Fallback if price_list join fails for some reason
           const productName = transaction.price_list?.name || 'Producto Desconocido';
           const productCode = transaction.price_list?.code || '---';
           const productBrand = transaction.price_list?.brand;
           const productModel = transaction.price_list?.model;
+          const fromName = transaction.from_location_id ? locationNames[transaction.from_location_id] : null;
+          const toName = transaction.to_location_id ? locationNames[transaction.to_location_id] : null;
+          const performerName = transaction.performed_by ? userNames[transaction.performed_by] : null;
 
           return (
             <div
@@ -150,6 +187,22 @@ export function StockMovements() {
                 </span>
               </div>
 
+              {/* Location flow */}
+              {(fromName || toName) && (
+                <div className="flex items-center gap-2 mb-3 text-sm">
+                  <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  {fromName && (
+                    <span className="px-2 py-0.5 bg-white rounded text-gray-700 font-medium">{fromName}</span>
+                  )}
+                  {fromName && toName && (
+                    <span className="text-gray-400">→</span>
+                  )}
+                  {toName && (
+                    <span className="px-2 py-0.5 bg-white rounded text-gray-700 font-medium">{toName}</span>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-gray-600">Cantidad</p>
@@ -160,16 +213,21 @@ export function StockMovements() {
                   <p className="font-semibold text-gray-900">${transaction.unit_cost?.toFixed(2) || '0.00'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Costo Total</p>
-                  <p className="font-semibold text-gray-900">${transaction.total_cost?.toFixed(2) || '0.00'}</p>
-                </div>
-                <div>
                   <p className="text-gray-600">Fecha</p>
                   <div className="flex items-center gap-1 font-medium text-gray-900">
                     <Calendar className="w-3 h-3" />
                     <span>{new Date(transaction.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
+                {performerName && (
+                  <div>
+                    <p className="text-gray-600">Realizado por</p>
+                    <div className="flex items-center gap-1 font-medium text-gray-900">
+                      <User className="w-3 h-3" />
+                      <span>{performerName}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {(transaction.service_order_id || transaction.inventory_suppliers || transaction.notes) && (
@@ -177,7 +235,7 @@ export function StockMovements() {
                   {transaction.service_order_id && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Wrench className="w-4 h-4" />
-                      <span>Usado en orden de servicio</span>
+                      <span>Vinculado a orden de servicio</span>
                     </div>
                   )}
                   {transaction.inventory_suppliers && (

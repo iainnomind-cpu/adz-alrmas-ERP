@@ -16,6 +16,8 @@ import {
   MessageSquare,
   History,
   Package,
+  Wrench,
+  Shield,
   Play,
   Pause,
   CheckCircle2,
@@ -92,7 +94,7 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
         .from('service_order_materials')
         .select(`
           *,
-          price_list:inventory_item_id (name, code)
+          price_list:inventory_item_id (name, code, category)
         `)
         .eq('service_order_id', orderId),
       supabase
@@ -390,39 +392,100 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                     <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border-2 border-amber-200">
                       <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                         <Package className="w-5 h-5 text-amber-600" />
-                        Equipo a Instalar
+                        Equipo / Material a Instalar
                       </h3>
-                      <div className="space-y-2">
-                        {materials.map((material: any) => (
-                          <div
-                            key={material.id}
-                            className="bg-white rounded-lg p-3 border border-amber-200 flex items-center justify-between"
-                          >
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">
-                                {material.price_list?.name || 'Equipo'}
-                              </p>
-                              {material.price_list?.code && (
-                                <p className="text-sm text-gray-600">
-                                  Código: {material.price_list.code}
-                                </p>
-                              )}
-                              {material.serial_number && (
-                                <p className="text-sm text-blue-600 font-medium">
-                                  Serie: {material.serial_number}
-                                </p>
-                              )}
+                      <div className="space-y-4">
+                        {/* Dispositivos */}
+                        {(() => {
+                          const dispositivos = materials.filter((m: any) => {
+                            const cat = m.price_list?.category?.toLowerCase() || '';
+                            return ['alarm', 'panel', 'sensor', 'keyboard', 'communicator', 'camera', 'dispositivo', 'device'].includes(cat);
+                          });
+                          if (dispositivos.length === 0) return null;
+                          return (
+                            <div>
+                              <h4 className="text-sm font-bold text-amber-800 mb-2 flex items-center gap-1.5">
+                                <Shield className="w-4 h-4" />
+                                Dispositivos ({dispositivos.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {dispositivos.map((material: any) => (
+                                  <div key={material.id} className="bg-white rounded-lg p-3 border border-amber-200 flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-gray-900">{material.price_list?.name || 'Equipo'}</p>
+                                      {material.price_list?.code && <p className="text-sm text-gray-600">Código: {material.price_list.code}</p>}
+                                      {material.serial_number && <p className="text-sm text-blue-600 font-medium">Serie: {material.serial_number}</p>}
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-sm font-medium">Cantidad: {material.quantity_used || 1}</span>
+                                      <p className="text-sm text-gray-600 mt-1">${material.unit_cost?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-sm font-medium">
-                                Cantidad: {material.quantity_used || 1}
-                              </span>
-                              <p className="text-sm text-gray-600 mt-1">
-                                ${material.unit_cost?.toFixed(2) || '0.00'}
-                              </p>
+                          );
+                        })()}
+                        {/* Materiales */}
+                        {(() => {
+                          const mats = materials.filter((m: any) => {
+                            const cat = m.price_list?.category?.toLowerCase() || '';
+                            return !['alarm', 'panel', 'sensor', 'keyboard', 'communicator', 'camera', 'dispositivo', 'device', 'service', 'servicio', 'installation', 'instalacion', 'maintenance', 'mantenimiento', 'monitoring', 'monitoreo', 'labor', 'mano_obra'].includes(cat);
+                          });
+                          if (mats.length === 0) return null;
+                          return (
+                            <div>
+                              <h4 className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-1.5">
+                                <Package className="w-4 h-4" />
+                                Materiales ({mats.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {mats.map((material: any) => (
+                                  <div key={material.id} className="bg-white rounded-lg p-3 border border-blue-200 flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-gray-900">{material.price_list?.name || 'Material'}</p>
+                                      {material.price_list?.code && <p className="text-sm text-gray-600">Código: {material.price_list.code}</p>}
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium">Cantidad: {material.quantity_used || 1}</span>
+                                      <p className="text-sm text-gray-600 mt-1">${material.unit_cost?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })()}
+                        {/* Servicios */}
+                        {(() => {
+                          const servs = materials.filter((m: any) => {
+                            const cat = m.price_list?.category?.toLowerCase() || '';
+                            return ['service', 'servicio', 'installation', 'instalacion', 'maintenance', 'mantenimiento', 'monitoring', 'monitoreo', 'labor', 'mano_obra'].includes(cat);
+                          });
+                          if (servs.length === 0) return null;
+                          return (
+                            <div>
+                              <h4 className="text-sm font-bold text-green-800 mb-2 flex items-center gap-1.5">
+                                <Wrench className="w-4 h-4" />
+                                Servicios ({servs.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {servs.map((material: any) => (
+                                  <div key={material.id} className="bg-white rounded-lg p-3 border border-green-200 flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-gray-900">{material.price_list?.name || 'Servicio'}</p>
+                                      {material.price_list?.code && <p className="text-sm text-gray-600">Código: {material.price_list.code}</p>}
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium">Cantidad: {material.quantity_used || 1}</span>
+                                      <p className="text-sm text-gray-600 mt-1">${material.unit_cost?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -534,61 +597,153 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                   )}
 
                   {materials.length > 0 && (
-                    <div className="space-y-3">
+                    <div className="space-y-6">
                       <h3 className="font-semibold text-gray-900">Materiales Utilizados</h3>
-                      {materials.map((material) => (
-                        <div key={material.id} className="bg-gray-50 rounded-xl p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="font-semibold text-gray-900">{material.price_list?.name || 'Producto'}</p>
-                              <p className="text-sm text-gray-600">{material.price_list?.code || ''}</p>
-                              {material.serial_number && (
-                                <p className="text-sm text-blue-600">Serie: {material.serial_number}</p>
-                              )}
+                      {/* Dispositivos */}
+                      {(() => {
+                        const dispositivos = materials.filter((m: any) => {
+                          const cat = m.price_list?.category?.toLowerCase() || '';
+                          return ['alarm', 'panel', 'sensor', 'keyboard', 'communicator', 'camera', 'dispositivo', 'device'].includes(cat);
+                        });
+                        if (dispositivos.length === 0) return null;
+                        return (
+                          <div>
+                            <h4 className="text-sm font-bold text-amber-800 mb-3 flex items-center gap-1.5 bg-amber-50 px-3 py-2 rounded-lg">
+                              <Shield className="w-4 h-4" />
+                              Dispositivos ({dispositivos.length})
+                            </h4>
+                            <div className="space-y-2">
+                              {dispositivos.map((material: any) => (
+                                <div key={material.id} className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-semibold text-gray-900">{material.price_list?.name || 'Dispositivo'}</p>
+                                      <p className="text-sm text-gray-600">{material.price_list?.code || ''}</p>
+                                      {material.serial_number && <p className="text-sm text-blue-600">Serie: {material.serial_number}</p>}
+                                    </div>
+                                    <div className="text-right mr-4">
+                                      <p className="text-sm text-gray-600">Cantidad: {material.quantity_used}</p>
+                                      <p className="text-sm text-gray-600">${material.unit_cost?.toFixed(2) || '0.00'} c/u</p>
+                                      <p className="font-semibold text-gray-900">${material.total_cost?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                    {order.status !== 'completed' && order.status !== 'cancelled' && (
+                                      <button
+                                        onClick={async () => {
+                                          if (confirm('¿Eliminar este material?')) {
+                                            await supabase.from('service_order_materials').delete().eq('id', material.id);
+                                            const { data: item } = await supabase.from('price_list').select('stock_quantity').eq('id', material.inventory_item_id).single();
+                                            if (item) { await supabase.from('price_list').update({ stock_quantity: (item as any).stock_quantity + material.quantity_used }).eq('id', material.inventory_item_id); }
+                                            loadOrderData();
+                                          }
+                                        }}
+                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                      >
+                                        <Trash2 className="w-5 h-5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            <div className="text-right mr-4">
-                              <p className="text-sm text-gray-600">Cantidad: {material.quantity_used}</p>
-                              <p className="text-sm text-gray-600">
-                                ${material.unit_cost?.toFixed(2) || '0.00'} c/u
-                              </p>
-                              <p className="font-semibold text-gray-900">${material.total_cost?.toFixed(2) || '0.00'}</p>
-                            </div>
-                            {order.status !== 'completed' && order.status !== 'cancelled' && (
-                              <button
-                                onClick={async () => {
-                                  if (confirm('¿Eliminar este material?')) {
-                                    await supabase
-                                      .from('service_order_materials')
-                                      .delete()
-                                      .eq('id', material.id);
-
-                                    // Restaurar stock en price_list
-                                    const { data: item } = await supabase
-                                      .from('price_list')
-                                      .select('stock_quantity')
-                                      .eq('id', material.inventory_item_id)
-                                      .single();
-
-                                    if (item) {
-                                      await supabase
-                                        .from('price_list')
-                                        .update({
-                                          stock_quantity: item.stock_quantity + material.quantity_used
-                                        })
-                                        .eq('id', material.inventory_item_id);
-                                    }
-
-                                    loadOrderData();
-                                  }
-                                }}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
-                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })()}
+                      {/* Materiales */}
+                      {(() => {
+                        const mats = materials.filter((m: any) => {
+                          const cat = m.price_list?.category?.toLowerCase() || '';
+                          return !['alarm', 'panel', 'sensor', 'keyboard', 'communicator', 'camera', 'dispositivo', 'device', 'service', 'servicio', 'installation', 'instalacion', 'maintenance', 'mantenimiento', 'monitoring', 'monitoreo', 'labor', 'mano_obra'].includes(cat);
+                        });
+                        if (mats.length === 0) return null;
+                        return (
+                          <div>
+                            <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center gap-1.5 bg-blue-50 px-3 py-2 rounded-lg">
+                              <Package className="w-4 h-4" />
+                              Materiales ({mats.length})
+                            </h4>
+                            <div className="space-y-2">
+                              {mats.map((material: any) => (
+                                <div key={material.id} className="bg-gray-50 rounded-xl p-4 border border-blue-100">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-semibold text-gray-900">{material.price_list?.name || 'Material'}</p>
+                                      <p className="text-sm text-gray-600">{material.price_list?.code || ''}</p>
+                                    </div>
+                                    <div className="text-right mr-4">
+                                      <p className="text-sm text-gray-600">Cantidad: {material.quantity_used}</p>
+                                      <p className="text-sm text-gray-600">${material.unit_cost?.toFixed(2) || '0.00'} c/u</p>
+                                      <p className="font-semibold text-gray-900">${material.total_cost?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                    {order.status !== 'completed' && order.status !== 'cancelled' && (
+                                      <button
+                                        onClick={async () => {
+                                          if (confirm('¿Eliminar este material?')) {
+                                            await supabase.from('service_order_materials').delete().eq('id', material.id);
+                                            const { data: item } = await supabase.from('price_list').select('stock_quantity').eq('id', material.inventory_item_id).single();
+                                            if (item) { await supabase.from('price_list').update({ stock_quantity: (item as any).stock_quantity + material.quantity_used }).eq('id', material.inventory_item_id); }
+                                            loadOrderData();
+                                          }
+                                        }}
+                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                      >
+                                        <Trash2 className="w-5 h-5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {/* Servicios */}
+                      {(() => {
+                        const servs = materials.filter((m: any) => {
+                          const cat = m.price_list?.category?.toLowerCase() || '';
+                          return ['service', 'servicio', 'installation', 'instalacion', 'maintenance', 'mantenimiento', 'monitoring', 'monitoreo', 'labor', 'mano_obra'].includes(cat);
+                        });
+                        if (servs.length === 0) return null;
+                        return (
+                          <div>
+                            <h4 className="text-sm font-bold text-green-800 mb-3 flex items-center gap-1.5 bg-green-50 px-3 py-2 rounded-lg">
+                              <Wrench className="w-4 h-4" />
+                              Servicios ({servs.length})
+                            </h4>
+                            <div className="space-y-2">
+                              {servs.map((material: any) => (
+                                <div key={material.id} className="bg-green-50 rounded-xl p-4 border border-green-100">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-semibold text-gray-900">{material.price_list?.name || 'Servicio'}</p>
+                                      <p className="text-sm text-gray-600">{material.price_list?.code || ''}</p>
+                                    </div>
+                                    <div className="text-right mr-4">
+                                      <p className="text-sm text-gray-600">Cantidad: {material.quantity_used}</p>
+                                      <p className="text-sm text-gray-600">${material.unit_cost?.toFixed(2) || '0.00'} c/u</p>
+                                      <p className="font-semibold text-gray-900">${material.total_cost?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                    {order.status !== 'completed' && order.status !== 'cancelled' && (
+                                      <button
+                                        onClick={async () => {
+                                          if (confirm('¿Eliminar este material?')) {
+                                            await supabase.from('service_order_materials').delete().eq('id', material.id);
+                                            const { data: item } = await supabase.from('price_list').select('stock_quantity').eq('id', material.inventory_item_id).single();
+                                            if (item) { await supabase.from('price_list').update({ stock_quantity: (item as any).stock_quantity + material.quantity_used }).eq('id', material.inventory_item_id); }
+                                            loadOrderData();
+                                          }
+                                        }}
+                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                      >
+                                        <Trash2 className="w-5 h-5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

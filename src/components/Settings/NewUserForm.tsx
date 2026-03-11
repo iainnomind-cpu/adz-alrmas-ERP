@@ -1,6 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { X, Save, Loader2, User, Clock } from 'lucide-react';
+import { X, Save, Loader2, User, Clock, Shield } from 'lucide-react';
+
+interface Role {
+  id: string;
+  name: string;
+  description: string;
+}
 
 interface NewUserFormProps {
   onClose: () => void;
@@ -9,8 +15,12 @@ interface NewUserFormProps {
 
 export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
   const [loading, setLoading] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState('');
+
   const [formData, setFormData] = useState({
+    role_id: '',
     email: '',
     password: '',
     full_name: '',
@@ -31,13 +41,56 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
     available_sunday: false
   });
 
+  useEffect(() => {
+    loadRoles();
+  }, []);
+
+  const loadRoles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('roles')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+
+      setRoles(data || []);
+
+      // Auto-select technician role if available
+      const techRole = data?.find(r => r.name === 'technician');
+      if (techRole) {
+        setFormData(prev => ({ ...prev, role_id: techRole.id }));
+      } else if (data && data.length > 0) {
+        setFormData(prev => ({ ...prev, role_id: data[0].id }));
+      }
+    } catch (err) {
+      console.error('Error loading roles:', err);
+      setError('Error al cargar los roles disponibles');
+    } finally {
+      setRolesLoading(false);
+    }
+  };
+
+  const getRoleLabel = (roleName: string) => {
+    switch (roleName) {
+      case 'admin': return 'Administrador';
+      case 'technician': return 'Técnico';
+      case 'customer_service': return 'Atención a Cliente';
+      case 'collector': return 'Cobrador';
+      default: return roleName;
+    }
+  };
+
+  const isTechnician = roles.find(r => r.id === formData.role_id)?.name === 'technician';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    if (!formData.email || !formData.password || !formData.full_name) {
-      setError('Email, contraseña y nombre completo son obligatorios');
+    if (!formData.email || !formData.password || !formData.full_name || !formData.role_id) {
+      setError('Email, contraseña, nombre completo y rol son obligatorios');
       setLoading(false);
       return;
     }
@@ -54,48 +107,93 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
         }
       });
 
-      if (authError) {
-        throw authError;
-      }
-
-      if (!authData.user) {
-        throw new Error('No se pudo crear el usuario');
-      }
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('No se pudo crear el usuario');
 
       // Esperar un momento para que el trigger cree el perfil base
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Actualizar el perfil del técnico con datos adicionales
-      const { error: updateError } = await supabase
-        .from('technicians')
+      // 1. Actualizar el perfil del usuario con el teléfono
+      const { error: profileError } = await (supabase
+        .from('user_profiles') as any)
         .update({
           phone: formData.phone || null,
-          employee_number: formData.employee_number || null,
-          specialty: formData.specialty || null,
-          hourly_rate: formData.hourly_rate,
-          hire_date: formData.hire_date || null,
-          work_schedule_start: formData.work_schedule_start,
-          work_schedule_end: formData.work_schedule_end,
-          available_monday: formData.available_monday,
-          available_tuesday: formData.available_tuesday,
-          available_wednesday: formData.available_wednesday,
-          available_thursday: formData.available_thursday,
-          available_friday: formData.available_friday,
-          available_saturday: formData.available_saturday,
-          available_sunday: formData.available_sunday,
           is_active: formData.is_active
         })
         .eq('id', authData.user.id);
 
-      if (updateError) {
-        console.error('Error actualizando perfil:', updateError);
+      if (profileError) {
+        console.error('Error actualizando user_profile:', profileError);
+      }
+
+      // 1.5 Insertar el rol del usuario
+      const { error: roleError } = await (supabase
+        .from('user_roles') as any)
+        .upsert({
+          user_id: authData.user.id,
+          role_id: formData.role_id
+        }, { onConflict: 'user_id,role_id' });
+
+      if (roleError && roleError.code !== '23505') {
+        console.error('Error asignando rol al usuario:', roleError);
+      }
+
+      // 2. Si es técnico, actualizar technicians e insertar technician_details
+      if (isTechnician) {
+        const { error: updateError } = await supabase
+          .from('technicians')
+          .update({
+            phone: formData.phone || null,
+            employee_number: formData.employee_number || null,
+            specialty: formData.specialty || null,
+            hourly_rate: formData.hourly_rate,
+            hire_date: formData.hire_date || null,
+            work_schedule_start: formData.work_schedule_start,
+            work_schedule_end: formData.work_schedule_end,
+            available_monday: formData.available_monday,
+            available_tuesday: formData.available_tuesday,
+            available_wednesday: formData.available_wednesday,
+            available_thursday: formData.available_thursday,
+            available_friday: formData.available_friday,
+            available_saturday: formData.available_saturday,
+            available_sunday: formData.available_sunday,
+            is_active: formData.is_active
+          })
+          .eq('id', authData.user.id);
+
+        if (updateError) console.error('Error actualizando perfil:', updateError);
+
+        // Insertar en technician_details
+        const { error: tdError } = await (supabase
+          .from('technician_details') as any)
+          .upsert({
+            user_profile_id: authData.user.id,
+            specialty: formData.specialty || null,
+            hourly_rate: formData.hourly_rate,
+            work_schedule_start: formData.work_schedule_start,
+            work_schedule_end: formData.work_schedule_end,
+            available_monday: formData.available_monday,
+            available_tuesday: formData.available_tuesday,
+            available_wednesday: formData.available_wednesday,
+            available_thursday: formData.available_thursday,
+            available_friday: formData.available_friday,
+            available_saturday: formData.available_saturday,
+            available_sunday: formData.available_sunday
+          }, { onConflict: 'user_profile_id' });
+
+        if (tdError) console.error('Error creando technician_details:', tdError);
       }
 
       onSuccess();
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error:', err);
-      setError(err instanceof Error ? err.message : 'Error al crear el usuario');
+      // Catch Supabase Auth rate limit errors explicitly
+      if (err.status === 429 || (err.message && err.message.includes('security purposes'))) {
+        setError('Has excedido el límite de creación de usuarios. Para crear múltiples usuarios seguidos, aumenta el límite en tu panel de Supabase (Auth -> Rate Limits -> Email Signups), o espera unos segundos.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Error al crear el usuario');
+      }
     } finally {
       setLoading(false);
     }
@@ -110,7 +208,7 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
               <div className="p-2 bg-white/20 rounded-lg">
                 <User className="w-6 h-6 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-white">Nuevo Técnico</h2>
+              <h2 className="text-2xl font-bold text-white">Nuevo Usuario</h2>
             </div>
             <button
               onClick={onClose}
@@ -128,6 +226,31 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rol del Usuario <span className="text-red-600">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Shield className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <select
+                    value={formData.role_id}
+                    onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                    required
+                    disabled={rolesLoading}
+                  >
+                    <option value="">Seleccione un rol...</option>
+                    {roles.map(role => (
+                      <option key={role.id} value={role.id}>
+                        {getRoleLabel(role.name)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nombre Completo <span className="text-red-600">*</span>
@@ -164,7 +287,7 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="tecnico@ejemplo.com"
+                  placeholder="usuario@ejemplo.com"
                   required
                 />
               </div>
@@ -185,117 +308,119 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
               </div>
             </div>
 
-            <div className="bg-blue-50 rounded-xl p-6 border-2 border-blue-200 space-y-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-gray-900">Información del Técnico</h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Número de Empleado
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.employee_number}
-                    onChange={(e) => setFormData({ ...formData, employee_number: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Ej: EMP-001"
-                  />
+            {isTechnician && (
+              <div className="bg-blue-50 rounded-xl p-6 border-2 border-blue-200 space-y-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-semibold text-gray-900">Información del Técnico</h3>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fecha de Contratación
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.hire_date}
-                    onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Especialidad
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.specialty}
-                    onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Ej: Sistemas de Alarmas"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pago por Hora ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.hourly_rate}
-                    onChange={(e) => setFormData({ ...formData, hourly_rate: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Hora de Inicio
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.work_schedule_start}
-                    onChange={(e) => setFormData({ ...formData, work_schedule_start: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Hora de Fin
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.work_schedule_end}
-                    onChange={(e) => setFormData({ ...formData, work_schedule_end: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Días Disponibles
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { key: 'available_monday', label: 'Lunes' },
-                    { key: 'available_tuesday', label: 'Martes' },
-                    { key: 'available_wednesday', label: 'Miércoles' },
-                    { key: 'available_thursday', label: 'Jueves' },
-                    { key: 'available_friday', label: 'Viernes' },
-                    { key: 'available_saturday', label: 'Sábado' },
-                    { key: 'available_sunday', label: 'Domingo' }
-                  ].map((day) => (
-                    <label key={day.key} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData[day.key as keyof typeof formData] as boolean}
-                        onChange={(e) => setFormData({ ...formData, [day.key]: e.target.checked })}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{day.label}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Número de Empleado
                     </label>
-                  ))}
+                    <input
+                      type="text"
+                      value={formData.employee_number}
+                      onChange={(e) => setFormData({ ...formData, employee_number: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Ej: EMP-001"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fecha de Contratación
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.hire_date}
+                      onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Especialidad
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.specialty}
+                      onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Ej: Sistemas de Alarmas"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Pago por Hora ($)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.hourly_rate}
+                      onChange={(e) => setFormData({ ...formData, hourly_rate: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Hora de Inicio
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.work_schedule_start}
+                      onChange={(e) => setFormData({ ...formData, work_schedule_start: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Hora de Fin
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.work_schedule_end}
+                      onChange={(e) => setFormData({ ...formData, work_schedule_end: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Días Disponibles
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { key: 'available_monday', label: 'Lunes' },
+                      { key: 'available_tuesday', label: 'Martes' },
+                      { key: 'available_wednesday', label: 'Miércoles' },
+                      { key: 'available_thursday', label: 'Jueves' },
+                      { key: 'available_friday', label: 'Viernes' },
+                      { key: 'available_saturday', label: 'Sábado' },
+                      { key: 'available_sunday', label: 'Domingo' }
+                    ].map((day) => (
+                      <label key={day.key} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData[day.key as keyof typeof formData] as boolean}
+                          onChange={(e) => setFormData({ ...formData, [day.key]: e.target.checked })}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{day.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="flex items-center gap-2">
               <input
@@ -305,7 +430,7 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
                 className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
               />
               <label className="text-sm font-medium text-gray-700">
-                Técnico activo
+                Usuario activo
               </label>
             </div>
 
@@ -319,7 +444,7 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || rolesLoading}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {loading ? (
@@ -330,7 +455,7 @@ export function NewUserForm({ onClose, onSuccess }: NewUserFormProps) {
                 ) : (
                   <>
                     <Save className="w-5 h-5" />
-                    Crear Técnico
+                    Crear Usuario
                   </>
                 )}
               </button>

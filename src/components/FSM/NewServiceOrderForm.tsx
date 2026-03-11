@@ -73,7 +73,7 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
   const loadAssets = async (customerId: string) => {
     const { data } = await supabase
       .from('assets')
-      .select('id, alarm_model, serial_number')
+      .select('id, alarm_model, model, serial_number, billing_date, has_extended_warranty')
       .eq('customer_id', customerId)
       .eq('status', 'active');
 
@@ -429,10 +429,34 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
                   <option value="">Sin activo específico</option>
                   {assets.map((asset) => (
                     <option key={asset.id} value={asset.id}>
-                      {asset.alarm_model} {asset.serial_number ? `(S/N: ${asset.serial_number})` : ''}
+                      {asset.model || asset.alarm_model || 'Equipo'} {asset.serial_number ? `(S/N: ${asset.serial_number})` : ''}
                     </option>
                   ))}
                 </select>
+                {formData.asset_id && (() => {
+                  const selectedAsset = assets.find(a => a.id === formData.asset_id);
+                  if (!selectedAsset?.billing_date) return null;
+
+                  const billingDate = new Date(selectedAsset.billing_date);
+                  const warrantyYears = selectedAsset.has_extended_warranty ? 2 : 1;
+                  const expirationDate = new Date(billingDate);
+                  expirationDate.setFullYear(expirationDate.getFullYear() + warrantyYears);
+                  const isValid = new Date() <= expirationDate;
+
+                  return (
+                    <div className={`mt-2 p-3 rounded-lg flex items-center gap-2 ${isValid ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                      <Shield className={`w-5 h-5 ${isValid ? 'text-green-600' : 'text-red-600'}`} />
+                      <div>
+                        <p className="font-semibold text-sm">
+                          {isValid ? 'El equipo se encuentra En Garantía' : 'El equipo se encuentra Fuera de Garantía'}
+                        </p>
+                        <p className="text-xs opacity-80">
+                          Vence: {expirationDate.toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

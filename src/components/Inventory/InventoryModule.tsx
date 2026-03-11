@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { InventoryDashboard } from './InventoryDashboard';
+import { LocationStockView } from './LocationStockView';
 import { StockMovements } from './StockMovements';
 import { InventoryAlerts } from './InventoryAlerts';
 import { PriceListManager } from './PriceListManager';
-import { Package, TrendingUp, AlertTriangle, BarChart3, DollarSign } from 'lucide-react';
+import { MaterialRequests } from './MaterialRequests';
+import { TrendingUp, AlertTriangle, BarChart3, DollarSign, MapPin, ClipboardList } from 'lucide-react';
 
-type TabType = 'dashboard' | 'products' | 'prices' | 'movements' | 'alerts';
+type TabType = 'dashboard' | 'locations' | 'requests' | 'products' | 'prices' | 'movements' | 'alerts';
 
 export function InventoryModule() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
 
   const tabs = [
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: BarChart3 },
+    { id: 'locations' as TabType, label: 'Ubicaciones', icon: MapPin },
+    { id: 'requests' as TabType, label: 'Solicitudes', icon: ClipboardList },
     { id: 'prices' as TabType, label: 'Productos y Precios', icon: DollarSign },
     { id: 'movements' as TabType, label: 'Movimientos', icon: TrendingUp },
     { id: 'alerts' as TabType, label: 'Alertas', icon: AlertTriangle }
@@ -21,6 +25,10 @@ export function InventoryModule() {
     switch (activeTab) {
       case 'dashboard':
         return <InventoryDashboard />;
+      case 'locations':
+        return <LocationStockView />;
+      case 'requests':
+        return <MaterialRequests />;
       case 'prices':
         return <PriceListManager />;
       case 'movements':

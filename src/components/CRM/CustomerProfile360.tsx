@@ -189,9 +189,42 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
     switch (classification) {
       case 'puntual': return { color: 'bg-green-100 text-green-800', label: 'Puntual' };
       case '15_dias': return { color: 'bg-yellow-100 text-yellow-800', label: '15 Días' };
+      case '30_dias': return { color: 'bg-orange-100 text-orange-800', label: '30 Días' };
       case 'moroso': return { color: 'bg-red-100 text-red-800', label: 'Moroso' };
       default: return { color: 'bg-gray-100 text-gray-800', label: classification };
     }
+  };
+
+  const getBillingPrefLabel = (pref: string) => {
+    const map: Record<string, string> = {
+      'factura_credito': 'Factura Crédito',
+      'factura_contado': 'Factura Contado',
+      'ticket_tf': 'Ticket TF',
+      'ticket_v': 'Ticket V',
+      'electronic': 'Electrónica',
+      'paper': 'Papel',
+    };
+    return map[pref] || pref;
+  };
+
+  const getBillingCycleLabel = (cycle: string) => {
+    const map: Record<string, string> = {
+      'monthly': 'Mensual',
+      'quarterly': 'Trimestral',
+      'semiannual': 'Semestral',
+      'annual': 'Anual',
+    };
+    return map[cycle] || cycle;
+  };
+
+  const getAccountTypeLabel = (type: string) => {
+    const map: Record<string, string> = {
+      'normal': 'Normal',
+      'master': 'Cuenta Maestra',
+      'consolidated': 'Cuenta Consolidada',
+      'corporativo': 'Corporativo',
+    };
+    return map[type] || type;
   };
 
   const totalPaid = paymentHistory.reduce((sum, p) => sum + p.amount, 0);
@@ -356,7 +389,7 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                       <div className="flex items-start gap-3">
                         <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
                         <div>
-                          <p className="text-sm text-gray-600">Dirección</p>
+                          <p className="text-sm text-gray-600">Domicilio Monitoreado</p>
                           <p className="font-medium text-gray-900">{customer.address}</p>
                         </div>
                       </div>
@@ -407,7 +440,7 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Tipo de Cuenta</p>
                         <span className="inline-flex items-center gap-2 px-3 py-1 bg-gray-200 text-gray-800 rounded-full text-sm font-medium capitalize">
-                          {customer.account_type}
+                          {getAccountTypeLabel(customer.account_type)}
                           {customer.is_master_account && <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />}
                         </span>
                       </div>
@@ -422,14 +455,14 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Preferencia de Pago</p>
                         <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium capitalize">
-                          {customer.billing_preference}
+                          {getBillingPrefLabel(customer.billing_preference)}
                         </span>
                       </div>
 
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Ciclo de Facturación</p>
                         <span className="inline-block px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium capitalize">
-                          {customer.billing_cycle}
+                          {getBillingCycleLabel(customer.billing_cycle)}
                         </span>
                       </div>
 
@@ -457,9 +490,7 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                           customer.account_type === 'consolidated' ? 'bg-blue-100 text-blue-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                          {customer.account_type === 'master' ? 'Cuenta Maestra' :
-                            customer.account_type === 'consolidated' ? 'Cuenta Consolidada' :
-                              'Cuenta Normal'}
+                          {getAccountTypeLabel(customer.account_type)}
                         </span>
                       </div>
 
