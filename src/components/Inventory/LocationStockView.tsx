@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { MapPin, Package, Search, ArrowRightLeft, Plus } from 'lucide-react';
+import { MapPin, Package, Search, ArrowRightLeft } from 'lucide-react';
 import { TransferForm } from './TransferForm';
 
 interface Location {
@@ -187,8 +187,8 @@ export function LocationStockView() {
 
             {/* Stock matrix table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
+                <div className="table-scroll w-full">
+                    <table className="w-full min-w-[800px]">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200">
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase sticky left-0 bg-gray-50 z-10 min-w-[200px]">

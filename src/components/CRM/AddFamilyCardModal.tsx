@@ -1,18 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { relationshipOptions } from '../../utils/cardHelpers';
 
 interface AddFamilyCardModalProps {
   isOpen: boolean;
+  suggestedNumber: string;
   onClose: () => void;
-  onSubmit: (name: string, relationship: string) => Promise<void>;
+  onSubmit: (name: string, relationship: string, cardNumber: string) => Promise<void>;
 }
 
-export function AddFamilyCardModal({ isOpen, onClose, onSubmit }: AddFamilyCardModalProps) {
+export function AddFamilyCardModal({ isOpen, suggestedNumber, onClose, onSubmit }: AddFamilyCardModalProps) {
   const [name, setName] = useState('');
   const [relationship, setRelationship] = useState('spouse');
+  const [cardNumber, setCardNumber] = useState(suggestedNumber);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Sync suggested number when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setCardNumber(suggestedNumber);
+    }
+  }, [isOpen, suggestedNumber]);
 
   if (!isOpen) return null;
 
@@ -25,11 +34,17 @@ export function AddFamilyCardModal({ isOpen, onClose, onSubmit }: AddFamilyCardM
       return;
     }
 
+    if (!cardNumber.trim()) {
+      setError('El número de tarjeta es requerido');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await onSubmit(name.trim(), relationship);
+      await onSubmit(name.trim(), relationship, cardNumber.trim().toUpperCase());
       setName('');
       setRelationship('spouse');
+      // No reseteamos cardNumber aún porque dependerá del próximo prop
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al generar la tarjeta');
@@ -64,6 +79,26 @@ export function AddFamilyCardModal({ isOpen, onClose, onSubmit }: AddFamilyCardM
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <p className="text-sm text-gray-600 mb-2">
+            Llena los datos del familiar y confirma o edita el identificador de la tarjeta digital.
+          </p>
+
+          <div>
+            <label htmlFor="familyCardNumber" className="block text-sm font-medium text-gray-700 mb-2">
+              Número de Tarjeta/Cuenta *
+            </label>
+            <input
+              id="familyCardNumber"
+              type="text"
+              value={cardNumber}
+              onChange={(e) => setCardNumber(e.target.value.toUpperCase())}
+              disabled={isSubmitting}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 uppercase"
+              placeholder="Ej: CARD-12345-002"
+              required
+            />
+          </div>
+
           <div>
             <label htmlFor="familyName" className="block text-sm font-medium text-gray-700 mb-2">
               Nombre del Familiar *

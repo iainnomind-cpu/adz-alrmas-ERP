@@ -82,6 +82,17 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Top Navigation for Notifications (Desktop & Mobile) */}
+      <div className="fixed top-0 right-0 left-0 bg-transparent z-[60] pointer-events-none">
+        <div className="max-w-7xl mx-auto flex justify-end px-4 py-2 lg:py-3 lg:pr-8">
+          <div className="flex items-center gap-2 pointer-events-auto bg-white/80 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm border border-gray-200">
+            <InventoryNotificationsBell />
+            <TechnicianNotifications />
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 px-4 py-3 z-50 flex items-center gap-3">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -92,26 +103,22 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
         <h1 className="text-xl font-bold text-gray-900">ERP System</h1>
       </div>
 
+      {/* Mobile Sidebar Overlay */}
       <div
         className={`fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden transition-opacity ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         onClick={() => setSidebarOpen(false)}
       />
 
+      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 transform transition-transform lg:translate-x-0 flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
       >
         <div className="p-6 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">ERP System</h1>
-              <p className="text-sm text-gray-600 mt-1">Field Service Management</p>
-            </div>
-            <div className="flex-shrink-0">
-              <InventoryNotificationsBell />
-              <TechnicianNotifications />
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">ERP System</h1>
+            <p className="text-sm text-gray-600 mt-1">Field Service Management</p>
           </div>
         </div>
 
@@ -186,8 +193,9 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
         </div>
       </aside>
 
-      <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">
-        <div className="p-4 lg:p-8">
+      {/* Main Content Area */}
+      <main className="lg:ml-64 min-h-screen flex flex-col min-w-0">
+        <div className="flex-1 p-4 lg:p-8 pt-20 lg:pt-16 max-w-7xl mx-auto w-full min-w-0">
           {children}
         </div>
       </main>

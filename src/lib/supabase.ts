@@ -66,6 +66,9 @@ export interface PriceListItem {
   discount_tier_5: number;
   is_active: boolean;
   is_kit: boolean;
+  has_tax: boolean;
+  tax_rate: number;
+  price_with_tax_mxn: number;
   stock_quantity: number;
   min_stock_level: number;
   supplier_notes: string | null;

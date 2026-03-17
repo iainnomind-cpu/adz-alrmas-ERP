@@ -1,42 +1,38 @@
 import { useState } from 'react';
-import { InventoryDashboard } from './InventoryDashboard';
 import { LocationStockView } from './LocationStockView';
+import { LocationManager } from './LocationManager';
 import { StockMovements } from './StockMovements';
-import { InventoryAlerts } from './InventoryAlerts';
 import { PriceListManager } from './PriceListManager';
 import { MaterialRequests } from './MaterialRequests';
-import { TrendingUp, AlertTriangle, BarChart3, DollarSign, MapPin, ClipboardList } from 'lucide-react';
+import { TrendingUp, DollarSign, MapPin, ClipboardList, Settings } from 'lucide-react';
 
-type TabType = 'dashboard' | 'locations' | 'requests' | 'products' | 'prices' | 'movements' | 'alerts';
+type TabType = 'locations' | 'manage-locations' | 'requests' | 'products' | 'prices' | 'movements';
 
 export function InventoryModule() {
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabType>('prices');
 
   const tabs = [
-    { id: 'dashboard' as TabType, label: 'Dashboard', icon: BarChart3 },
-    { id: 'locations' as TabType, label: 'Ubicaciones', icon: MapPin },
-    { id: 'requests' as TabType, label: 'Solicitudes', icon: ClipboardList },
     { id: 'prices' as TabType, label: 'Productos y Precios', icon: DollarSign },
+    { id: 'locations' as TabType, label: 'Distribución por Ubicación', icon: MapPin },
+    { id: 'requests' as TabType, label: 'Solicitudes', icon: ClipboardList },
     { id: 'movements' as TabType, label: 'Movimientos', icon: TrendingUp },
-    { id: 'alerts' as TabType, label: 'Alertas', icon: AlertTriangle }
+    { id: 'manage-locations' as TabType, label: 'Ajustes de Almacén', icon: Settings }
   ];
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard':
-        return <InventoryDashboard />;
       case 'locations':
         return <LocationStockView />;
+      case 'manage-locations':
+        return <LocationManager />;
       case 'requests':
         return <MaterialRequests />;
       case 'prices':
         return <PriceListManager />;
       case 'movements':
         return <StockMovements />;
-      case 'alerts':
-        return <InventoryAlerts />;
       default:
-        return <InventoryDashboard />;
+        return <PriceListManager />;
     }
   };
 

@@ -42,6 +42,8 @@ interface FormData {
     supplier_notes: string;
     internal_notes: string;
     is_active: boolean;
+    has_tax: boolean;
+    tax_rate: string;
 }
 
 const CATEGORY_LABELS: Record<CategoryType, string> = {
@@ -97,7 +99,9 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         min_stock_level: item?.min_stock_level?.toString() || '5',
         supplier_notes: item?.supplier_notes || '',
         internal_notes: item?.internal_notes || '',
-        is_active: item?.is_active ?? true
+        is_active: item?.is_active ?? true,
+        has_tax: item?.has_tax ?? true,
+        tax_rate: item?.tax_rate?.toString() || '16'
     });
 
     // Mostrar campos técnicos solo para dispositivos y sensores
@@ -182,6 +186,13 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
             }
         }
 
+        if (formData.has_tax) {
+            const tr = parseFloat(formData.tax_rate);
+            if (isNaN(tr) || tr < 0) {
+                return 'La tasa de IVA debe ser un número válido mayor o igual a 0';
+            }
+        }
+
         return null;
     };
 
@@ -239,7 +250,9 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 supplier_notes: formData.supplier_notes || null,
                 internal_notes: formData.internal_notes || null,
                 is_active: formData.is_active,
-                is_kit: false // Siempre false - kits no permitidos
+                is_kit: false, // Siempre false - kits no permitidos
+                has_tax: formData.has_tax,
+                tax_rate: formData.has_tax ? parseFloat(formData.tax_rate) : 0
             };
 
             if (isEditing && item) {
@@ -596,6 +609,42 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                     </div>
                                 </div>
                             )}
+
+                             {/* Configuración de Impuestos */}
+                            <div className="bg-orange-50 rounded-lg p-4 space-y-4 border border-orange-200">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     <div className="flex items-center gap-2 pt-8">
+                                            <input
+                                                type="checkbox"
+                                                id="has_tax"
+                                                checked={formData.has_tax}
+                                                onChange={(e) => setFormData({ ...formData, has_tax: e.target.checked })}
+                                                className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                            />
+                                            <label htmlFor="has_tax" className="text-sm font-medium text-gray-700">
+                                                Causa IVA
+                                            </label>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Porcentaje de IVA (%) <span className="text-red-600">*</span>
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                disabled={!formData.has_tax}
+                                                value={formData.tax_rate}
+                                                onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })}
+                                                className="w-full pl-4 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                                                placeholder="16.00"
+                                            />
+                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {/* SECCIÓN: Precio de Venta al Público */}

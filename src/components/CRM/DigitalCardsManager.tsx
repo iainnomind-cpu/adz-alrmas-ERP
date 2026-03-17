@@ -3,6 +3,8 @@ import { CreditCard, Plus, TrendingUp, CheckCircle, AlertCircle } from 'lucide-r
 import { supabase, DigitalCard as DigitalCardType, CardUsage } from '../../lib/supabase';
 import { DigitalCard } from './DigitalCard';
 import { AddFamilyCardModal } from './AddFamilyCardModal';
+import { AddTitularCardModal } from './AddTitularCardModal';
+import { EditCardNumberModal } from './EditCardNumberModal';
 import { BlockCardModal } from './BlockCardModal';
 import { generateCardNumber, createQRCodeData } from '../../utils/cardHelpers';
 
@@ -24,6 +26,11 @@ export function DigitalCardsManager({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [showFamilyModal, setShowFamilyModal] = useState(false);
+  const [suggestedFamilyNumber, setSuggestedFamilyNumber] = useState('');
+  const [showTitularModal, setShowTitularModal] = useState(false);
+  const [suggestedTitularNumber, setSuggestedTitularNumber] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [cardToEdit, setCardToEdit] = useState<DigitalCardType | null>(null);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [cardToBlock, setCardToBlock] = useState<DigitalCardType | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
@@ -48,7 +55,7 @@ export function DigitalCardsManager({
       setCards(cardsData || []);
 
       if (cardsData && cardsData.length > 0) {
-        const cardIds = cardsData.map((card) => card.id);
+        const cardIds = cardsData.map((card: any) => card.id);
         const { data: usageData, error: usageError } = await supabase
           .from('digital_card_usage')
           .select('card_id')
@@ -71,13 +78,18 @@ export function DigitalCardsManager({
 
   const hasTitularCard = cards.some((card) => card.card_type === 'titular');
 
-  const generateTitularCard = async () => {
+  const handleOpenTitularModal = () => {
+    const sequence = cards.length + 1;
+    const cardNumber = generateCardNumber(accountNumber, sequence);
+    setSuggestedTitularNumber(cardNumber);
+    setShowTitularModal(true);
+  };
+
+  const handleConfirmTitularCard = async (cardNumber: string) => {
     setError('');
     setSuccessMessage('');
 
     try {
-      const sequence = cards.length + 1;
-      const cardNumber = generateCardNumber(accountNumber, sequence);
       const qrCodeData = createQRCodeData(
         cardNumber,
         customerId,
@@ -87,8 +99,7 @@ export function DigitalCardsManager({
         true
       );
 
-      const { error: insertError } = await supabase
-        .from('customer_digital_cards')
+      const { error: insertError } = await (supabase.from('customer_digital_cards') as any)
         .insert({
           customer_id: customerId,
           customer_name: customerName,
@@ -100,7 +111,10 @@ export function DigitalCardsManager({
           is_active: true,
         });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        if (insertError.code === '23505') throw new Error('Este número de tarjeta ya está en uso');
+        throw insertError;
+      }
 
       setSuccessMessage('Tarjeta titular generada exitosamente');
       await loadCards();
@@ -110,9 +124,14 @@ export function DigitalCardsManager({
     }
   };
 
-  const handleAddFamilyCard = async (name: string, relationship: string) => {
+  const handleOpenFamilyModal = () => {
     const sequence = cards.length + 1;
     const cardNumber = generateCardNumber(accountNumber, sequence);
+    setSuggestedFamilyNumber(cardNumber);
+    setShowFamilyModal(true);
+  };
+
+  const handleAddFamilyCard = async (name: string, relationship: string, cardNumber: string) => {
     const qrCodeData = createQRCodeData(
       cardNumber,
       customerId,
@@ -122,8 +141,7 @@ export function DigitalCardsManager({
       true
     );
 
-    const { error: insertError } = await supabase
-      .from('customer_digital_cards')
+    const { error: insertError } = await (supabase.from('customer_digital_cards') as any)
       .insert({
         customer_id: customerId,
         customer_name: customerName,
@@ -136,11 +154,50 @@ export function DigitalCardsManager({
         is_active: true,
       });
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      if (insertError.code === '23505') throw new Error('Este número de tarjeta ya está en uso');
+      throw insertError;
+    }
 
     setSuccessMessage(`Tarjeta familiar para ${name} generada exitosamente`);
     await loadCards();
     onUpdate?.();
+  };
+
+  const handleEditCard = (card: DigitalCardType) => {
+    setCardToEdit(card);
+    setShowEditModal(true);
+  };
+
+  const handleConfirmEditCard = async (newNumber: string) => {
+    if (!cardToEdit) return;
+
+    try {
+      const updatedQRData = {
+        ...cardToEdit.qr_code_data,
+        cardNumber: newNumber,
+      };
+
+      const { error: updateError } = await (supabase.from('customer_digital_cards') as any)
+        .update({
+          card_number: newNumber,
+          qr_code_data: updatedQRData,
+        })
+        .eq('id', cardToEdit.id);
+
+      if (updateError) {
+        if (updateError.code === '23505') {
+          throw new Error('Este número de tarjeta ya está en uso por otro cliente.');
+        }
+        throw updateError;
+      }
+
+      setSuccessMessage('Número de tarjeta actualizado exitosamente');
+      await loadCards();
+      onUpdate?.();
+    } catch (err) {
+      throw err;
+    }
   };
 
   const handleBlockCard = (card: DigitalCardType) => {
@@ -156,8 +213,7 @@ export function DigitalCardsManager({
       validUntil: new Date().toISOString(),
     };
 
-    const { error: updateError } = await supabase
-      .from('customer_digital_cards')
+    const { error: updateError } = await (supabase.from('customer_digital_cards') as any)
       .update({
         is_active: false,
         block_reason: reason,
@@ -178,8 +234,7 @@ export function DigitalCardsManager({
       validUntil: null,
     };
 
-    const { error: updateError } = await supabase
-      .from('customer_digital_cards')
+    const { error: updateError } = await (supabase.from('customer_digital_cards') as any)
       .update({
         is_active: true,
         block_reason: null,
@@ -273,7 +328,7 @@ export function DigitalCardsManager({
         <div className="flex gap-3">
           {!hasTitularCard && (
             <button
-              onClick={generateTitularCard}
+              onClick={handleOpenTitularModal}
               className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
               <CreditCard className="w-5 h-5" />
@@ -282,7 +337,7 @@ export function DigitalCardsManager({
           )}
 
           <button
-            onClick={() => setShowFamilyModal(true)}
+            onClick={handleOpenFamilyModal}
             className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
           >
             <Plus className="w-5 h-5" />
@@ -298,6 +353,7 @@ export function DigitalCardsManager({
               key={card.id}
               card={card}
               usageCount={usageCounts[card.id] || 0}
+              onEdit={handleEditCard}
               onBlock={handleBlockCard}
               onActivate={handleActivateCard}
             />
@@ -315,10 +371,28 @@ export function DigitalCardsManager({
         </div>
       )}
 
+      <AddTitularCardModal
+        isOpen={showTitularModal}
+        suggestedNumber={suggestedTitularNumber}
+        onClose={() => setShowTitularModal(false)}
+        onSubmit={handleConfirmTitularCard}
+      />
+
       <AddFamilyCardModal
         isOpen={showFamilyModal}
+        suggestedNumber={suggestedFamilyNumber}
         onClose={() => setShowFamilyModal(false)}
         onSubmit={handleAddFamilyCard}
+      />
+
+      <EditCardNumberModal
+        isOpen={showEditModal}
+        currentNumber={cardToEdit?.card_number || ''}
+        onClose={() => {
+          setShowEditModal(false);
+          setCardToEdit(null);
+        }}
+        onSubmit={handleConfirmEditCard}
       />
 
       <BlockCardModal

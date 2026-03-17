@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { UserManagement } from './UserManagement';
 import { RolePermissions } from './RolePermissions';
-import { SystemSettings } from './SystemSettings';
 import { FolioSeriesManagement } from './FolioSeriesManagement';
 import { NotificationsManager } from './NotificationsManager';
-import { Users, Shield, Settings as SettingsIcon, FileText, Bell } from 'lucide-react';
+import { Users, Shield, FileText, Bell } from 'lucide-react';
 
-type TabType = 'users' | 'roles' | 'settings' | 'folios' | 'notifications';
+type TabType = 'users' | 'roles' | 'folios' | 'notifications';
 
 export function SettingsModule() {
   const [activeTab, setActiveTab] = useState<TabType>('users');
@@ -14,7 +13,6 @@ export function SettingsModule() {
   const tabs = [
     { id: 'users' as TabType, label: 'Usuarios', icon: Users },
     { id: 'roles' as TabType, label: 'Roles y Permisos', icon: Shield },
-    { id: 'settings' as TabType, label: 'Configuración', icon: SettingsIcon },
     { id: 'folios' as TabType, label: 'Series de Folios', icon: FileText },
     { id: 'notifications' as TabType, label: 'Notificaciones', icon: Bell }
   ];
@@ -25,8 +23,6 @@ export function SettingsModule() {
         return <UserManagement />;
       case 'roles':
         return <RolePermissions />;
-      case 'settings':
-        return <SystemSettings />;
       case 'folios':
         return <FolioSeriesManagement />;
       case 'notifications':

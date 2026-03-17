@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, Mail, Lock, Unlock, Shield } from 'lucide-react';
+import { Download, Mail, Lock, Unlock, Shield, Edit2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { DigitalCard as DigitalCardType, supabase } from '../../lib/supabase';
 
@@ -9,6 +9,7 @@ import cancologo from '../../assets/cancologo.png';
 interface DigitalCardProps {
   card: DigitalCardType;
   usageCount: number;
+  onEdit: (card: DigitalCardType) => void;
   onBlock: (card: DigitalCardType) => void;
   onActivate: (card: DigitalCardType) => void;
 }
@@ -18,7 +19,7 @@ const getDropboxDirectLink = (url: string) => {
   return url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('&raw=1', '');
 };
 
-export function DigitalCard({ card, usageCount, onBlock, onActivate }: DigitalCardProps) {
+export function DigitalCard({ card, usageCount, onEdit, onBlock, onActivate }: DigitalCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -214,11 +215,13 @@ export function DigitalCard({ card, usageCount, onBlock, onActivate }: DigitalCa
 
     try {
       // Get customer email from database
-      const { data: customerData, error: customerError } = await supabase
+      const { data: customerDataRaw, error: customerError } = await supabase
         .from('customers')
         .select('email, name')
         .eq('id', card.customer_id)
         .single();
+        
+      const customerData = customerDataRaw as any;
 
       if (customerError || !customerData?.email) {
         setEmailError('El cliente no tiene un email registrado');
@@ -362,7 +365,7 @@ export function DigitalCard({ card, usageCount, onBlock, onActivate }: DigitalCa
       const cardImage = canvas.toDataURL('image/png');
 
       // Send email via Edge Function
-      const { data, error } = await supabase.functions.invoke('send-digital-card', {
+      const { error } = await supabase.functions.invoke('send-digital-card', {
         body: {
           cardId: card.id,
           customerEmail: customerData.email,
@@ -521,6 +524,15 @@ export function DigitalCard({ card, usageCount, onBlock, onActivate }: DigitalCa
                 <Mail className="w-4 h-4" />
               )}
             </button>
+            {card.is_active && (
+              <button
+                onClick={() => onEdit(card)}
+                className="p-2 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors"
+                title="Editar número de tarjeta"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
             {card.is_active ? (
               <button
                 onClick={() => onBlock(card)}

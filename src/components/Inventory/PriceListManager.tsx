@@ -68,9 +68,8 @@ export function PriceListManager() {
 
     const toggleItemStatus = async (item: PriceListItem) => {
         try {
-            const { error } = await supabase
-                .from('price_list')
-                .update({ is_active: !item.is_active } as any)
+            const { error } = await (supabase.from('price_list') as any)
+                .update({ is_active: !item.is_active })
                 .eq('id', item.id);
 
             if (error) throw error;
@@ -161,7 +160,7 @@ export function PriceListManager() {
     };
 
     const exportToCSV = () => {
-        const headers = ['Código', 'Marca', 'Modelo', 'Nombre', 'Categoría', 'Moneda', 'Precio Base MXN', 'Stock', 'Estado'];
+        const headers = ['Código', 'Marca', 'Modelo', 'Nombre', 'Categoría', 'Moneda', 'Precio Base MXN', 'IVA', 'Precio c/IVA MXN', 'Stock', 'Estado'];
         const rows = filteredItems.map(item => [
             item.code,
             item.brand || '',
@@ -170,6 +169,8 @@ export function PriceListManager() {
             CATEGORY_LABELS[item.category],
             item.currency,
             item.base_price_mxn.toFixed(2),
+            item.has_tax ? `${item.tax_rate}%` : 'Exento',
+            item.price_with_tax_mxn?.toFixed(2) || item.base_price_mxn.toFixed(2),
             item.stock_quantity.toString(),
             item.is_active ? 'Activo' : 'Inactivo'
         ]);
@@ -348,13 +349,13 @@ export function PriceListManager() {
             </div>
 
             {/* Tabla de productos */}
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
+            <div className="bg-white rounded-xl shadow-sm border mt-6 flex flex-col min-w-0 overflow-hidden">
+                <div className="table-scroll w-full">
+                    <table className="w-full" style={{ minWidth: '900px' }}>
                         <thead className="bg-gray-50 border-b">
                             <tr>
                                 <th
-                                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                                    className="px-2 py-2 text-left text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap w-[70px]"
                                     onClick={() => handleSort('code')}
                                 >
                                     <div className="flex items-center gap-1">
@@ -362,7 +363,7 @@ export function PriceListManager() {
                                     </div>
                                 </th>
                                 <th
-                                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                                    className="px-2 py-2 text-left text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap"
                                     onClick={() => handleSort('name')}
                                 >
                                     <div className="flex items-center gap-1">
@@ -370,42 +371,45 @@ export function PriceListManager() {
                                     </div>
                                 </th>
                                 <th
-                                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                                    className="px-2 py-2 text-left text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap w-[70px]"
                                     onClick={() => handleSort('brand')}
                                 >
                                     <div className="flex items-center gap-1">
                                         Marca <SortIndicator field="brand" />
                                     </div>
                                 </th>
-                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                                <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-[80px]">
                                     Modelo
                                 </th>
-                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                                <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-[80px]">
                                     Categoría
                                 </th>
-                                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">
+                                <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 whitespace-nowrap w-[65px]">
                                     Moneda
                                 </th>
                                 <th
-                                    className="px-4 py-3 text-right text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                                    className="px-2 py-2 text-right text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap w-[85px]"
                                     onClick={() => handleSort('base_price_mxn')}
                                 >
                                     <div className="flex items-center justify-end gap-1">
-                                        Precio Base <SortIndicator field="base_price_mxn" />
+                                        P. Base <SortIndicator field="base_price_mxn" />
                                     </div>
                                 </th>
+                                <th className="px-2 py-2 text-right text-xs font-semibold text-gray-700 whitespace-nowrap w-[85px]">
+                                    P. c/IVA
+                                </th>
                                 <th
-                                    className="px-4 py-3 text-center text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+                                    className="px-2 py-2 text-center text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap w-[50px]"
                                     onClick={() => handleSort('stock_quantity')}
                                 >
                                     <div className="flex items-center justify-center gap-1">
                                         Stock <SortIndicator field="stock_quantity" />
                                     </div>
                                 </th>
-                                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">
+                                <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 whitespace-nowrap w-[60px]">
                                     Estado
                                 </th>
-                                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">
+                                <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 whitespace-nowrap w-[80px]">
                                     Acciones
                                 </th>
                             </tr>
@@ -420,98 +424,106 @@ export function PriceListManager() {
                                         key={item.id}
                                         className={`hover:bg-gray-50 transition-colors ${!item.is_active ? 'opacity-60' : ''}`}
                                     >
-                                        <td className="px-4 py-3">
-                                            <span className="font-mono text-sm font-medium text-gray-900">
+                                        <td className="px-2 py-2 whitespace-nowrap">
+                                            <span className="font-mono text-xs font-medium text-gray-600">
                                                 {item.code}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div>
-                                                <p className="font-medium text-gray-900">{item.name}</p>
-                                                {item.description && (
-                                                    <p className="text-sm text-gray-500 truncate max-w-xs">
-                                                        {item.description}
-                                                    </p>
-                                                )}
-                                            </div>
+                                        <td className="px-2 py-2 max-w-[200px]">
+                                            <p className="font-medium text-sm text-gray-900 truncate" title={item.name}>{item.name}</p>
+                                            {item.description && (
+                                                <p className="text-xs text-gray-400 truncate" title={item.description}>
+                                                    {item.description}
+                                                </p>
+                                            )}
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="text-sm text-gray-900">{item.brand || 'N/A'}</div>
+                                        <td className="px-2 py-2 whitespace-nowrap">
+                                            <span className="text-xs text-gray-700 truncate block max-w-[70px]" title={item.brand || ''}>{item.brand || '—'}</span>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="text-sm text-gray-900">{item.model || 'N/A'}</div>
+                                        <td className="px-2 py-2 whitespace-nowrap">
+                                            <span className="text-xs text-gray-700 truncate block max-w-[80px]" title={item.model || ''}>{item.model || '—'}</span>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${CATEGORY_COLORS[item.category]}`}>
+                                        <td className="px-2 py-2 whitespace-nowrap">
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${CATEGORY_COLORS[item.category]}`}>
                                                 {CATEGORY_LABELS[item.category]}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.currency === 'USD'
+                                        <td className="px-2 py-2 text-center whitespace-nowrap">
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${item.currency === 'USD'
                                                 ? 'bg-blue-100 text-blue-800'
                                                 : 'bg-green-100 text-green-800'
                                                 }`}>
-                                                {item.currency === 'USD' ? '💵 USD' : '🇲🇽 MXN'}
+                                                {item.currency}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <span className="font-semibold text-gray-900">
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                                            <span className="font-medium text-sm text-gray-900">
                                                 {formatCurrency(item.base_price_mxn)}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-center">
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                                            <div className="flex flex-col items-end">
+                                               <span className="font-bold text-sm text-gray-900">
+                                                  {formatCurrency(item.price_with_tax_mxn || item.base_price_mxn)}
+                                               </span>
+                                               <span className={`text-[9px] font-medium px-1 py-0 rounded ${item.has_tax ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                  {item.has_tax ? `IVA ${item.tax_rate}%` : 'Sin IVA'}
+                                               </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-2 py-2 text-center whitespace-nowrap">
                                             {['dispositivo', 'sensor', 'accesorio', 'material'].includes(item.category) ? (
-                                                <div className="flex items-center justify-center gap-1">
-                                                    <span className={`font-medium ${isLowStock ? 'text-red-600' : 'text-gray-900'}`}>
+                                                <div className="flex items-center justify-center gap-0.5">
+                                                    <span className={`text-sm font-medium ${isLowStock ? 'text-red-600' : 'text-gray-900'}`}>
                                                         {item.stock_quantity}
                                                     </span>
                                                     {isLowStock && (
-                                                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                                                        <AlertTriangle className="w-3 h-3 text-red-500" />
                                                     )}
                                                 </div>
                                             ) : (
-                                                <span className="text-gray-400">—</span>
+                                                <span className="text-gray-400 text-xs">—</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.is_active
+                                        <td className="px-2 py-2 text-center whitespace-nowrap">
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${item.is_active
                                                 ? 'bg-green-100 text-green-800'
                                                 : 'bg-gray-100 text-gray-600'
                                                 }`}>
                                                 {item.is_active ? 'Activo' : 'Inactivo'}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center justify-center gap-1">
+                                        <td className="px-1 py-2 whitespace-nowrap">
+                                            <div className="flex items-center justify-center gap-0">
                                                 <button
                                                     onClick={() => setShowCalculator(item)}
-                                                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                                     title="Calculadora"
                                                 >
-                                                    <Calculator className="w-4 h-4" />
+                                                    <Calculator className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
                                                     onClick={() => {
                                                         setEditingItem(item);
                                                         setShowForm(true);
                                                     }}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                                     title="Editar"
                                                 >
-                                                    <Edit2 className="w-4 h-4" />
+                                                    <Edit2 className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
                                                     onClick={() => toggleItemStatus(item)}
-                                                    className={`p-2 rounded-lg transition-colors ${item.is_active
+                                                    className={`p-1.5 rounded-lg transition-colors ${item.is_active
                                                         ? 'text-gray-600 hover:bg-gray-100'
                                                         : 'text-green-600 hover:bg-green-50'
                                                         }`}
                                                     title={item.is_active ? 'Desactivar' : 'Activar'}
                                                 >
                                                     {item.is_active ? (
-                                                        <ToggleLeft className="w-4 h-4" />
+                                                        <ToggleLeft className="w-3.5 h-3.5" />
                                                     ) : (
-                                                        <ToggleRight className="w-4 h-4" />
+                                                        <ToggleRight className="w-3.5 h-3.5" />
                                                     )}
                                                 </button>
                                             </div>

@@ -24,15 +24,22 @@ export function PriceCalculator({
         const basePrice = item.base_price_mxn || 0;
         const discount = Math.min(Math.max(discountPercentage, 0), 30); // Limitar 0-30%
         const discountAmount = basePrice * (discount / 100);
-        const finalPrice = basePrice - discountAmount;
+        const subtotal = basePrice - discountAmount;
+        
+        const taxRate = item.has_tax ? item.tax_rate : 0;
+        const taxAmount = subtotal * (taxRate / 100);
+        const finalPrice = subtotal + taxAmount;
 
         return {
             basePrice,
             discount,
             discountAmount,
+            subtotal,
+            taxRate,
+            taxAmount,
             finalPrice
         };
-    }, [item.base_price_mxn, discountPercentage]);
+    }, [item.base_price_mxn, item.has_tax, item.tax_rate, discountPercentage]);
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('es-MX', {
@@ -131,8 +138,28 @@ export function PriceCalculator({
                         </div>
                     )}
 
+                    {/* Subtotal antes de IVA  */}
+                    {(calculations.discount > 0 || item.has_tax) && (
+                         <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                             <span className="text-gray-600">Subtotal:</span>
+                             <span className="font-semibold text-gray-800">
+                                 {formatCurrency(calculations.subtotal)}
+                             </span>
+                         </div>
+                    )}
+
+                     {/* IVA */}
+                     {item.has_tax && (
+                          <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                              <span className="text-gray-600">IVA ({item.tax_rate}%):</span>
+                              <span className="font-semibold text-gray-800">
+                                  {formatCurrency(calculations.taxAmount)}
+                              </span>
+                          </div>
+                     )}
+
                     {/* Precio final */}
-                    <div className="flex justify-between items-center py-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg px-3 -mx-1">
+                    <div className="flex justify-between items-center py-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg px-3 -mx-1 mt-2">
                         <span className="text-green-800 font-semibold">PRECIO FINAL:</span>
                         <span className="text-2xl font-bold text-green-700">
                             {formatCurrency(calculations.finalPrice)}
@@ -152,7 +179,8 @@ export function PriceCalculator({
                                 { tier: 4, discount: item.discount_tier_4 },
                                 { tier: 5, discount: item.discount_tier_5 },
                             ].map(({ tier, discount }) => {
-                                const price = calculations.basePrice * (1 - discount / 100);
+                                const subtotal = calculations.basePrice * (1 - discount / 100);
+                                const price = subtotal * (1 + (item.has_tax ? item.tax_rate / 100 : 0));
                                 return (
                                     <div
                                         key={tier}

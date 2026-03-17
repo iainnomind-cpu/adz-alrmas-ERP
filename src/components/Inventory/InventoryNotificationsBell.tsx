@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { X, CheckCircle2, Package, ClipboardList, AlertTriangle } from 'lucide-react';
@@ -20,6 +20,7 @@ export function InventoryNotificationsBell() {
     const [notifications, setNotifications] = useState<InventoryNotification[]>([]);
     const [showPanel, setShowPanel] = useState(false);
     const [loading, setLoading] = useState(false);
+    const panelRef = useRef<HTMLDivElement>(null);
     const unreadCount = notifications.filter(n => !n.is_read).length;
 
     useEffect(() => {
@@ -47,6 +48,20 @@ export function InventoryNotificationsBell() {
             supabase.removeChannel(channel);
         };
     }, [user]);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
+                setShowPanel(false);
+            }
+        }
+        if (showPanel) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [showPanel]);
 
     const loadNotifications = async () => {
         if (!user) return;
@@ -126,7 +141,7 @@ export function InventoryNotificationsBell() {
     };
 
     return (
-        <>
+        <div className="relative" ref={panelRef}>
             <button
                 onClick={() => setShowPanel(!showPanel)}
                 className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -141,8 +156,8 @@ export function InventoryNotificationsBell() {
             </button>
 
             {showPanel && (
-                <div className="absolute right-0 top-12 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50">
-                    <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <div className="absolute right-0 top-[calc(100%+0.5rem)] w-[calc(100vw-2rem)] sm:w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-[70] origin-top-right">
+                    <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50 rounded-t-xl">
                         <div>
                             <h3 className="font-semibold text-gray-900">Inventario</h3>
                             {unreadCount > 0 && (
@@ -153,21 +168,21 @@ export function InventoryNotificationsBell() {
                             {unreadCount > 0 && (
                                 <button
                                     onClick={markAllAsRead}
-                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
                                 >
                                     Marcar todo
                                 </button>
                             )}
                             <button
                                 onClick={() => setShowPanel(false)}
-                                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                className="p-1 hover:bg-gray-200 rounded-lg transition-colors"
                             >
                                 <X className="w-4 h-4 text-gray-500" />
                             </button>
                         </div>
                     </div>
 
-                    <div className="max-h-96 overflow-y-auto">
+                    <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto">
                         {loading ? (
                             <div className="p-4 text-center">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto"></div>
@@ -214,6 +229,6 @@ export function InventoryNotificationsBell() {
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }
