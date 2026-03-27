@@ -905,6 +905,8 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                 customerId={customerId}
                 customerName={customer.name}
                 accountNumber={customer.account_number || 0}
+                customerStatus={customer.status}
+                isSuspended={customer.is_suspended}
                 onUpdate={loadCustomerData}
               />
             )}

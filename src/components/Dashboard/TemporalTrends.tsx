@@ -22,7 +22,7 @@ export function TemporalTrends() {
     try {
       const [servicesData, invoicesData, customersData] = await Promise.all([
         supabase.from('service_orders').select('created_at, total_cost, status'),
-        supabase.from('invoices').select('created_at, total_amount, status'),
+        supabase.from('invoices').select('created_at, total_amount, status').neq('status', 'cancelled'),
         supabase.from('customers').select('created_at')
       ]);
 

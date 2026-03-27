@@ -45,7 +45,7 @@ export function ExecutiveDashboard() {
         assetsData
       ] = await Promise.all([
         supabase.from('customers').select('status'),
-        supabase.from('invoices').select('status, total_amount, days_overdue'),
+        supabase.from('invoices').select('status, total_amount, days_overdue').neq('status', 'cancelled'),
         supabase.from('service_orders').select('status, total_time_minutes'),
         supabase.from('assets').select('is_eol, status')
       ]);

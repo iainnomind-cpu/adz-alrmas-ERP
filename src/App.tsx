@@ -71,11 +71,17 @@ function App() {
         return <Dashboard />;
       case 'customers':
       case 'customers-alarma':
-        return <CustomerList systemType="Alarma" />;
+        return <CustomerList systemType="alarma" />;
       case 'customers-cctv':
-        return <CustomerList systemType="CCTV" />;
+        return <CustomerList systemType="cctv" />;
       case 'customers-acceso':
-        return <CustomerList systemType="Control de Acceso" />;
+        return <CustomerList systemType="control_acceso" />;
+      case 'customers-asistencia':
+        return <CustomerList systemType="control_asistencia" />;
+      case 'customers-videoportero':
+        return <CustomerList systemType="video_portero" />;
+      case 'customers-red':
+        return <CustomerList systemType="red" />;
       case 'service-orders':
         return <ServiceOrderList />;
       case 'calendar':

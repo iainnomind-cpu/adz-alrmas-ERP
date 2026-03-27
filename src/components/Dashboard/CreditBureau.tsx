@@ -28,7 +28,7 @@ export function CreditBureau() {
     try {
       const [customersData, invoicesData] = await Promise.all([
         supabase.from('customers').select('id, name, phone, credit_classification'),
-        supabase.from('invoices').select('customer_id, total_amount, status, days_overdue')
+        supabase.from('invoices').select('customer_id, total_amount, status, days_overdue').neq('status', 'cancelled')
       ]);
 
       const customersMap = new Map<string, CustomerCredit>();

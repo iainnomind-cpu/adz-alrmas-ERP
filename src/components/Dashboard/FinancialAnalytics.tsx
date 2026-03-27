@@ -13,7 +13,7 @@ export function FinancialAnalytics() {
   const loadFinancial = async () => {
     try {
       const [invoicesData, servicesData] = await Promise.all([
-        supabase.from('invoices').select('*'),
+        supabase.from('invoices').select('*').neq('status', 'cancelled'),
         supabase.from('service_orders').select('total_cost, labor_cost, materials_cost, status')
       ]);
 

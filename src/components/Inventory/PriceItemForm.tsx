@@ -224,6 +224,10 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 }
             }
 
+            const finalBasePrice = sellingPrice > 0 ? sellingPrice : calculatedBaseMXN;
+            const finalTaxRate = formData.has_tax ? parseFloat(formData.tax_rate) : 0;
+            const finalPriceWithTax = finalBasePrice * (1 + (finalTaxRate / 100));
+
             const dataToSave = {
                 code: formData.code.toUpperCase(),
                 name: formData.name,
@@ -239,7 +243,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 cost_price_usd: formData.currency === 'USD' ? parseFloat(formData.cost_price_usd) : null,
                 cost_price_mxn: formData.currency === 'MXN' ? parseFloat(formData.cost_price_mxn) : null,
                 exchange_rate: parseFloat(formData.exchange_rate) || 21,
-                base_price_mxn: sellingPrice > 0 ? sellingPrice : calculatedBaseMXN,
+                base_price_mxn: finalBasePrice,
                 discount_tier_1: formData.discount_tier_1,
                 discount_tier_2: formData.discount_tier_2,
                 discount_tier_3: formData.discount_tier_3,
@@ -252,7 +256,8 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 is_active: formData.is_active,
                 is_kit: false, // Siempre false - kits no permitidos
                 has_tax: formData.has_tax,
-                tax_rate: formData.has_tax ? parseFloat(formData.tax_rate) : 0
+                tax_rate: finalTaxRate,
+                price_with_tax_mxn: parseFloat(finalPriceWithTax.toFixed(2))
             };
 
             if (isEditing && item) {

@@ -8,10 +8,14 @@ import { EditCardNumberModal } from './EditCardNumberModal';
 import { BlockCardModal } from './BlockCardModal';
 import { generateCardNumber, createQRCodeData } from '../../utils/cardHelpers';
 
+import { CUSTOMER_STATUS } from '../../constants/customerStatus';
+
 interface DigitalCardsManagerProps {
   customerId: string;
   customerName: string;
   accountNumber: number;
+  customerStatus?: string;
+  isSuspended?: boolean;
   onUpdate?: () => void;
 }
 
@@ -19,6 +23,8 @@ export function DigitalCardsManager({
   customerId,
   customerName,
   accountNumber,
+  customerStatus,
+  isSuspended,
   onUpdate,
 }: DigitalCardsManagerProps) {
   const [cards, setCards] = useState<DigitalCardType[]>([]);
@@ -325,25 +331,38 @@ export function DigitalCardsManager({
           </div>
         )}
 
-        <div className="flex gap-3">
-          {!hasTitularCard && (
-            <button
-              onClick={handleOpenTitularModal}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              <CreditCard className="w-5 h-5" />
-              Generar Tarjeta Titular
-            </button>
-          )}
+        {isSuspended || (customerStatus && customerStatus.toLowerCase() !== CUSTOMER_STATUS.ACTIVE) ? (
+          <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-3 w-full">
+            <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-orange-900">Operación restringida</p>
+              <p className="text-sm text-orange-700 mt-1">
+                No se pueden asignar nuevas tarjetas a clientes con estado de suspensión.
+                El cliente debe estar activo para recibir nuevas tarjetas.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-3">
+            {!hasTitularCard && (
+              <button
+                onClick={handleOpenTitularModal}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                <CreditCard className="w-5 h-5" />
+                Generar Tarjeta Titular
+              </button>
+            )}
 
-          <button
-            onClick={handleOpenFamilyModal}
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-          >
-            <Plus className="w-5 h-5" />
-            Agregar Tarjeta Familiar
-          </button>
-        </div>
+            <button
+              onClick={handleOpenFamilyModal}
+              className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+            >
+              <Plus className="w-5 h-5" />
+              Agregar Tarjeta Familiar
+            </button>
+          </div>
+        )}
       </div>
 
       {cards.length > 0 && (
