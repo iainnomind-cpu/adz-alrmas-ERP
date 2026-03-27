@@ -60,7 +60,10 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
       subItems: [
         { id: 'customers-alarma', label: 'Alarma' },
         { id: 'customers-cctv', label: 'CCTV' },
-        { id: 'customers-acceso', label: 'Control de Acceso' }
+        { id: 'customers-acceso', label: 'Control de Acceso' },
+        { id: 'customers-asistencia', label: 'Control de Asistencia' },
+        { id: 'customers-videoportero', label: 'Video Portero' },
+        { id: 'customers-red', label: 'Red' }
       ]
     },
     { id: 'service-orders', label: 'Órdenes de Servicio', icon: Wrench },

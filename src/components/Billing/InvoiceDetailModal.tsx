@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PaymentModal } from './PaymentModal';
+import { BILLING_STATUS } from '../../constants/billingStatus';
 
 
 interface InvoiceDetailModalProps {
@@ -45,6 +46,8 @@ interface BillingDocument {
   monthly_installment: number | null;
   installment_number: number | null;
   total_installments: number | null;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
   notes: string | null;
   internal_notes: string | null;
   created_at: string;
@@ -146,12 +149,12 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
       const { data, error } = await supabase
         .from('billing_documents')
         .update({
-          payment_status: 'cancelled',
+          payment_status: BILLING_STATUS.CANCELLED,
           balance: 0,
           cancelled_at: new Date().toISOString(),
           cancellation_reason: 'Cancelado desde la interfaz de usuario',
           internal_notes: `Cancelado: ${timestamp} \n ${document.internal_notes || ''}`
-        })
+        } as any)
         .eq('id', document.id)
         .select();
 
@@ -190,11 +193,39 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
 
   const handleDownload = async () => {
     if (!document || actionLoading) return;
-    setIsPrinting(true);
-    setTimeout(() => {
-      window.print();
-      setIsPrinting(false);
-    }, 100);
+    
+    setActionLoading('download');
+    
+    try {
+      // 1. Live Backend Check (CRITICAL)
+      // Check real status from DB directly to prevent UI evasion
+      const { data: latestDoc, error } = await supabase
+        .from('billing_documents')
+        .select('payment_status, cancellation_reason')
+        .eq('id', document.id)
+        .single();
+        
+      if (error) throw error;
+      
+      if (latestDoc.payment_status === BILLING_STATUS.CANCELLED || latestDoc.cancellation_reason) {
+        alert('Este documento está cancelado y no puede ser utilizado como comprobante de pago');
+        // Update local UI immediately so it reflects truth
+        setDocument(prev => prev ? { ...prev, payment_status: BILLING_STATUS.CANCELLED } : prev);
+        return; // BLOCK PRINT RENDERING
+      }
+      
+      // 2. Allow Print
+      setIsPrinting(true);
+      setTimeout(() => {
+        window.print();
+        setIsPrinting(false);
+      }, 100);
+    } catch (err) {
+      console.error('Error in download block:', err);
+      alert('Error verificando la integridad del documento');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const getDocumentTypeLabel = (type: string): string => {
@@ -568,18 +599,32 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
                       </button>
                     )}
 
-                    <button
-                      onClick={handleDownload}
-                      disabled={actionLoading === 'download'}
-                      className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium flex items-center justify-center gap-2"
-                    >
-                      {actionLoading === 'download' ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Download className="w-4 h-4" />
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleDownload}
+                        disabled={actionLoading === 'download' || document.payment_status === BILLING_STATUS.CANCELLED || !!document.cancellation_reason}
+                        className={`w-full px-4 py-3 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+                          document.payment_status === BILLING_STATUS.CANCELLED || document.cancellation_reason
+                            ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                            : 'bg-blue-600 hover:bg-blue-700 disabled:opacity-50'
+                        }`}
+                      >
+                        {actionLoading === 'download' ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : document.payment_status === BILLING_STATUS.CANCELLED || document.cancellation_reason ? (
+                          <Ban className="w-4 h-4" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                        {document.payment_status === BILLING_STATUS.CANCELLED || document.cancellation_reason ? 'Documento Cancelado' : 'Descargar/Imprimir'}
+                      </button>
+                      
+                      {(document.payment_status === BILLING_STATUS.CANCELLED || document.cancellation_reason) && (
+                        <p className="text-xs text-red-600 text-center font-medium px-2">
+                          Este documento está cancelado y no puede ser impreso ni utilizado como comprobante válido.
+                        </p>
                       )}
-                      Descargar/Imprimir
-                    </button>
+                    </div>
 
                     {document.payment_status !== 'cancelled' && !document.cancellation_reason && (
                       <button
@@ -731,10 +776,30 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
 
       {/* Print Portal for Invoice PDF */}
       {isPrinting && document && createPortal(
-        <div className="print-portal-container">
-          <div className="print-content">
+        <div className="print-portal-container relative">
+          {/* Watermark for Cancelled Documents - Extra Security Guard */}
+          {(document.payment_status === BILLING_STATUS.CANCELLED || document.cancellation_reason) && (
+            <div className="absolute inset-0 z-0 flex flex-col items-center justify-center pointer-events-none overflow-hidden" style={{ minHeight: '100vh' }}>
+              <div 
+                className="text-red-600 font-bold opacity-10" 
+                style={{ fontSize: '180px', transform: 'rotate(-45deg)', whiteSpace: 'nowrap' }}
+              >
+                CANCELADO
+              </div>
+              {document.cancelled_at && (
+                <div 
+                  className="text-red-600 font-bold opacity-20 mt-8" 
+                  style={{ fontSize: '24px', transform: 'rotate(-45deg)', whiteSpace: 'nowrap' }}
+                >
+                  Fecha: {new Date(document.cancelled_at).toLocaleDateString('es-MX')}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="print-content relative z-10">
             {/* Header */}
-            <div className="flex items-center justify-between border-b-2 border-red-600 pb-4 mb-6">
+            <div className={`flex items-center justify-between border-b-2 pb-4 mb-6 ${document.payment_status === BILLING_STATUS.CANCELLED ? 'border-gray-400' : 'border-red-600'}`}>
               <div className="flex items-center gap-4">
                 <div>
                   <h1 className="text-2xl font-bold text-red-600">ALARMAS ADZ</h1>

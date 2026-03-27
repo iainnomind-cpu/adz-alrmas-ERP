@@ -24,7 +24,7 @@ export function PortfolioAnalysis() {
     try {
       const [customersData, invoicesData] = await Promise.all([
         supabase.from('customers').select('status, account_type, id'),
-        supabase.from('invoices').select('customer_id, total_amount, status')
+        supabase.from('invoices').select('customer_id, total_amount, status').neq('status', 'cancelled')
       ]);
 
       const customers = customersData.data || [];

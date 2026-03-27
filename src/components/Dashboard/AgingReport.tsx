@@ -25,7 +25,7 @@ export function AgingReport() {
     try {
       const [customersData, invoicesData] = await Promise.all([
         supabase.from('customers').select('id, name'),
-        supabase.from('invoices').select('customer_id, total_amount, status, days_overdue')
+        supabase.from('invoices').select('customer_id, total_amount, status, days_overdue').neq('status', 'cancelled')
       ]);
 
       const customersMap = new Map<string, AgingBucket>();

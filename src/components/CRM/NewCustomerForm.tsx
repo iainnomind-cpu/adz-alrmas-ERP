@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { X, Save, Loader2 } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
 import { LocationMap } from './LocationMap';
-
+import { SYSTEM_TYPES } from '../../constants/systemTypes';
 type CustomerInsert = Database['public']['Tables']['customers']['Insert'] & {
   branch_name?: string;
   is_single_branch?: boolean;
@@ -54,7 +54,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
     neighborhood: customer?.neighborhood ?? '',
     city: customer?.city ?? '',
     state: customer?.state ?? '',
-    system_type: customer?.system_type || defaultSystemType || 'Alarma',
+    system_type: customer?.system_type || defaultSystemType || 'alarma',
     customer_type: customer?.customer_type || 'casa',
     communication_tech: customer?.communication_tech || 'telefono',
     monitoring_plan: customer?.monitoring_plan || '',
@@ -279,16 +279,15 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   Tipo de Sistema
                 </label>
                 <select
-                  value={formData.system_type || 'Alarma'}
+                  value={formData.system_type || 'alarma'}
                   onChange={(e) => handleChange('system_type', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="Alarma">Alarma</option>
-                  <option value="CCTV">CCTV</option>
-                  <option value="Control de Acceso">Control de Acceso</option>
-                  <option value="Control de Asistencia">Control de Asistencia</option>
-                  <option value="Video Portero">Video Portero</option>
-                  <option value="Red">Red</option>
+                  {SYSTEM_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 

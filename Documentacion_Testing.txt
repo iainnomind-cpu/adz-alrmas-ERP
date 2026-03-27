@@ -1,0 +1,173 @@
+DOCUMENTACIÓN DE PRUEBAS FUNCIONALES (QA / TESTING)
+SISTEMA: ADZ ALRMAS - ERP DE SEGURIDAD Y MONITOREO
+
+================================================================================
+1. INTRODUCCIÓN
+================================================================================
+Descripción general del sistema:
+ADZ Alrmas ERP es un sistema integral diseñado para la gestión operativa y financiera de una empresa de seguridad electrónica y monitoreo. La plataforma centraliza la administración de clientes residenciales y comerciales, órdenes de servicio técnico en campo (FSM), inventario de equipos de seguridad y facturación recurrente.
+
+Objetivo del documento:
+Servir como guía de referencia para el equipo de QA para validar que las funcionalidades críticas del negocio (instalaciones, monitoreo y cobranza) operen correctamente sin errores de datos o fugas de información entre espacios de trabajo.
+
+Alcance del testing:
+Pruebas funcionales de los módulos de Dashboard Ejecutivo, CRM de Seguridad, Órdenes de Servicio (FSM), Gestión de Activos (Equipos), Inventario, Calendario y Facturación.
+
+================================================================================
+2. DESCRIPCIÓN DE MÓDULOS
+================================================================================
+
+--------------------------------------------------------------------------------
+MÓDULO: DASHBOARD EJECUTIVO (Analytics)
+--------------------------------------------------------------------------------
+A) Descripción general
+Proporciona una vista 360 de la salud del negocio mediante KPIs operativos y financieros en tiempo real.
+
+B) Funcionalidades principales
+- Visualización de clientes activos vs totales.
+- Reporte de Cartera Vencida y reporte Aging (mora).
+- Análisis de productividad de técnicos.
+- Métricas de activos en EOL (End of Life / Obsolescencia).
+- Gráficas de tendencias mensuales de ingresos y servicios.
+
+C) Flujo de uso
+1. El directivo o administrador ingresa al sistema.
+2. Navega por las pestañas del Dashboard (Ejecutivo, Clientes, Servicios, Financiero).
+3. Selecciona filtros de fechas o tipos de cliente para ajustar las métricas.
+
+E) Validaciones importantes
+- Las sumatorias de los KPIs financieros deben coincidir con los totales de los reportes detallados.
+- Los estados de carga (spinners) deben mostrarse mientras se procesan los datos de Supabase.
+
+F) Casos de prueba
+- Positivo: Validar que el KPI de "Clientes Activos" aumenta al dar de alta un nuevo cliente.
+- Negativo: Verificar que un usuario sin permisos de "Administrador" no tenga acceso al Dashboard Financiero.
+- Límite: Cargar el dashboard en una cuenta con miles de registros para validar tiempos de respuesta.
+
+--------------------------------------------------------------------------------
+MÓDULO: CRM - GESTIÓN DE CLIENTES DE SEGURIDAD
+--------------------------------------------------------------------------------
+A) Descripción general
+Administra la base de datos de usuarios finales del servicio de monitoreo, incluyendo su ubicación geográfica y perfiles de acceso.
+
+B) Funcionalidades principales
+- Registro de Clientes por tipo de sistema (Alarma, CCTV, Control de Acceso).
+- Gestión de Tarjetas Digitales (ID) para titulares y familiares.
+- Localización geográfica de sitios en mapa (Google Maps API).
+- Gestión de Cuentas Maestras y Cuentas Consolidadas.
+- Suspensión y reactivación de servicios por falta de pago.
+
+C) Flujo de uso
+1. El operador crea un "Nuevo Cliente" asignándole un "Tipo de Sistema".
+2. Registra los miembros de la familia que tendrán tarjetas digitales.
+3. Configura la ubicación exacta en el mapa integrado.
+4. Escanea códigos QR para vincular tarjetas digitales si aplica.
+
+D) Estados del sistema
+- Cliente: Activo, Suspendido (por mora), Inactivo (Baja), Prospecto.
+
+E) Validaciones importantes
+- El correo electrónico del titular es campo obligatorio.
+- Solo se pueden asignar tarjetas familiares a clientes con cuenta activa.
+- El sistema debe evitar duplicidad de números de serie o ID de tarjetas digitales.
+
+F) Casos de prueba
+- Positivo: Bloquear una tarjeta digital desde el panel y verificar que su estado cambie a "Blocked".
+- Negativo: Intentar asignar una tarjeta a un cliente en estado "Suspendido".
+- Límite: Buscar un cliente entre una lista de 5,000+ registros usando filtros de "Tipo de Sistema".
+
+--------------------------------------------------------------------------------
+MÓDULO: FSM - ÓRDENES DE SERVICIO (Field Service)
+--------------------------------------------------------------------------------
+A) Descripción general
+Coordina las visitas de los técnicos para instalaciones nuevas, mantenimientos preventivos o reparaciones de emergencia.
+
+B) Funcionalidades principales
+- Creación de órdenes de servicio vinculadas a un cliente y activo.
+- Registro de materiales utilizados en campo (tomados del inventario).
+- Captura de evidencia fotográfica del servicio.
+- Generación de reportes PDF con firma digital del cliente.
+- Re-agendamiento automático de servicios no completados.
+
+C) Flujo de uso
+1. El despachador crea una órden de servicio desde el Dashboard o Calendario.
+2. El técnico la visualiza en su dispositivo móvil.
+3. El técnico inicia el servicio, añade materiales consumidos y toma fotos del equipo instalado.
+4. El cliente firma en la pantalla y se genera el PDF final enviado por correo.
+
+D) Estados del sistema
+- Órden: Pendiente, En Proceso, Completada, Cancelada, Re-programada.
+
+E) Validaciones importantes
+- No se puede completar un servicio sin adjuntar al menos una foto de evidencia.
+- Los materiales agregados deben descontarse automáticamente del stock físico de "Inventario".
+
+F) Casos de prueba
+- Positivo: Completar un servicio de "Instalación" y verificar que el equipo pase a ser un "Activo" del cliente.
+- Negativo: Intentar añadir un material que no tiene existencias en el almacén.
+- Límite: Subir 10 fotos de alta resolución simultáneamente para probar estabilidad de carga.
+
+--------------------------------------------------------------------------------
+MÓDULO: ACTIVOS E INVENTARIO
+--------------------------------------------------------------------------------
+A) Descripción general
+Controla el ciclo de vida del equipo físico (paneles de alarma, cámaras, grabadores) desde el almacén hasta la casa del cliente.
+
+B) Funcionalidades principales
+- Catálogo de productos con niveles de stock mínimo (alertas).
+- Listado de activos instalados por cliente con historial de servicios aplicados.
+- Escaneo de códigos de barras/QR para entrada y salida de mercancía.
+
+E) Validaciones importantes
+- Las alertas de "Stock Bajo" deben dispararse visualmente cuando la cantidad es <= al mínimo definido.
+- Un activo no puede ser borrado si tiene órdenes de servicio asociadas.
+
+F) Casos de prueba
+- Positivo: Registrar la entrada de 50 sensores nuevos y validar que el valor total del inventario se actualice en el Dashboard.
+- Negativo: Intentar asignar un activo a un cliente inexistente insertando un ID manual.
+
+================================================================================
+3. FLUJOS GENERALES DEL SISTEMA
+================================================================================
+1. Ciclo de Venta e Instalación:
+   - Se convierte un prospecto a cliente en el CRM.
+   - Se agenda una órden de servicio de "Instalación" en el Calendario.
+   - El técnico instala los equipos (Activos), los cuales pasan a formar parte del inventario del cliente.
+   - Al finalizar, se emite automáticamente la factura inicial (Billing).
+
+2. Gestión de Mora y Seguridad:
+   - El sistema detecta facturas vencidas > 30 días en el Aging Report.
+   - El administrador suspende el servicio masivamente.
+   - Las Tarjetas Digitales de los familiares de esos clientes se bloquean automáticamente.
+
+================================================================================
+4. DATOS DE PRUEBA SUGERIDOS
+================================================================================
+- Válidos: Clientes con dirección GPS real (para el mapa), Números de serie de 8 dígitos, Imágenes JPG < 2MB.
+- Inválidos: Fechas de servicio en el pasado sin justificación, Cantidades de inventario negativas, Archivos .exe o .zip.
+
+================================================================================
+5. REQUISITOS PARA TESTING
+================================================================================
+- Usuario con rol 'Admin' para módulos financieros.
+- Usuario con rol 'Técnico' para probar la App de FSM.
+- App de cámara o escáner QR funcional para pruebas de tarjetas digitales.
+- Base de datos conectada a Supabase (dev environment).
+
+================================================================================
+6. CRITERIOS DE ACEPTACIÓN
+================================================================================
+1. El aislamiento de datos (Multi-tenancy) debe ser inviolable mediante RLS.
+2. Toda órden de servicio completada debe tener un PDF generado correctamente almacenado en Storage.
+3. El Dashboard no debe mostrar discrepancias superiores al 1% en cálculos de utilidad y costos con respecto a los datos crudos.
+
+================================================================================
+7. RECOMENDACIONES
+================================================================================
+- Prioridad Crítica: Integración de materiales de FSM con Inventario (posible fuga de stock).
+- Prioridad Alta: Seguridad de Tarjetas Digitales y QR.
+- Área de Riesgo: Sincronización de Google Maps en áreas con baja cobertura (offline mode si aplicase).
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================

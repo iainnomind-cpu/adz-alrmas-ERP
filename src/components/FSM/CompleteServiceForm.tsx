@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { CardValidationService } from '../../services/CardValidationService';
 import { supabase } from '../../lib/supabase';
 import { QRScannerModal } from '../CRM/QRScannerModal';
 import {
@@ -474,23 +475,27 @@ export function CompleteServiceForm({
 
   const handleQRScanSuccess = async (cardData: any) => {
     try {
-      const { data: card, error: cardError } = await supabase
-        .from('customer_digital_cards')
-        .select('*')
-        .eq('card_number', cardData.cardNumber)
-        .eq('is_active', true)
-        .maybeSingle();
+      const { data } = await supabase.auth.getUser();
 
-      if (cardError || !card) {
-        setError('Tarjeta no encontrada o inactiva');
+      const card = await CardValidationService.validateScannedCard({
+        cardNumber: cardData.cardNumber,
+        targetCustomerId: customerId,
+        userId: data.user?.id,
+        serviceOrderId: orderId,
+        contextMessage: `Orden de servicio #${orderId}`
+      });
+
+      if (!card) {
         setShowQRScanner(false);
         return;
       }
 
+      // Validacion adicional de expiración (por fecha límite particular del componente legacy QR)
       if (cardData.validUntil) {
         const validDate = new Date(cardData.validUntil);
         if (validDate < new Date()) {
-          setError('Esta tarjeta ha expirado o está bloqueada');
+          // Loggear the fake expiration as failure if needed or just error
+          setError('Esta tarjeta ha expirado');
           setShowQRScanner(false);
           return;
         }

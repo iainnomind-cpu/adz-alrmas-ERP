@@ -968,7 +968,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
       {showNewCustomerForm && (
         <NewCustomerForm
           customer={customerToEdit as any}
-          defaultSystemType={systemType || 'Alarma'}
+          defaultSystemType={systemType || 'alarma'}
           onClose={() => {
             setShowNewCustomerForm(false);
             setCustomerToEdit(undefined);

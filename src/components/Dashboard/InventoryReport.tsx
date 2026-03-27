@@ -12,12 +12,47 @@ export function InventoryReport() {
 
   const loadInventory = async () => {
     try {
-      const { data } = await supabase.from('inventory_items').select('*');
-      const items = data || [];
-      const totalValue = items.reduce((sum, i) => sum + (i.quantity_available * i.unit_cost), 0);
-      const lowStock = items.filter(i => i.quantity_available <= i.min_stock_level && i.quantity_available > 0).length;
-      const outOfStock = items.filter(i => i.quantity_available === 0).length;
-      setInventory({ items, totalValue, lowStock, outOfStock });
+      // Query the actual driving table for "Productos y Precios" tab
+      const { data, error } = await supabase
+        .from('price_list')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      const items: any[] = data || [];
+      
+      // Stock calculations only apply to physical goods in PriceListManager
+      const validCategories = ['dispositivo', 'sensor', 'accesorio', 'material'];
+      
+      let totalValue = 0;
+      let lowStock = 0;
+      let outOfStock = 0;
+
+      const physicalItems = items.filter(item => validCategories.includes(item.category));
+
+      physicalItems.forEach(item => {
+        const stock = item.stock_quantity || 0;
+        const minStock = item.min_stock_level || 5;
+        const cost = item.base_price_mxn || 0;
+        
+        totalValue += (stock * cost);
+
+        if (stock === 0) {
+          outOfStock++;
+        } else if (stock < minStock) {
+          // Note: PriceListManager uses < min_stock_level, not <= !
+          lowStock++;
+        }
+      });
+
+      setInventory({ 
+        items: physicalItems, 
+        totalProducts: items.length, // Matching the general "Total Productos" indicator
+        totalValue, 
+        lowStock, 
+        outOfStock 
+     });
     } catch (error) {
       console.error('Error loading inventory:', error);
     } finally {
@@ -37,11 +72,11 @@ export function InventoryReport() {
         <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-6 text-white">
           <Package className="w-8 h-8 mb-4" />
           <p className="text-sm opacity-90">Total Productos</p>
-          <p className="text-4xl font-bold">{inventory.items.length}</p>
+          <p className="text-4xl font-bold">{inventory.totalProducts}</p>
         </div>
         <div className="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-6 text-white">
           <DollarSign className="w-8 h-8 mb-4" />
-          <p className="text-sm opacity-90">Valor Total</p>
+          <p className="text-sm opacity-90">Valor Total (Stock)</p>
           <p className="text-4xl font-bold">${inventory.totalValue.toFixed(0)}</p>
         </div>
         <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-6 text-white">
@@ -64,24 +99,27 @@ export function InventoryReport() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Stock</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Mínimo</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Costo Unit.</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Costo/Base (MXN)</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor Total</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {inventory.items.map((item: any) => {
-                const value = item.quantity_available * item.unit_cost;
-                const status = item.quantity_available === 0 ? 'out' : item.quantity_available <= item.min_stock_level ? 'low' : 'ok';
+                const stock = item.stock_quantity || 0;
+                const minStock = item.min_stock_level || 5;
+                const cost = item.base_price_mxn || 0;
+                const value = stock * cost;
+                const status = stock === 0 ? 'out' : stock < minStock ? 'low' : 'ok';
                 return (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-900">{item.name}</div>
-                      <div className="text-sm text-gray-500">{item.sku}</div>
+                      <div className="text-sm text-gray-500">{item.code} {item.brand ? `• ${item.brand}` : ''}</div>
                     </td>
-                    <td className="px-6 py-4 text-center font-semibold">{item.quantity_available}</td>
-                    <td className="px-6 py-4 text-center text-gray-600">{item.min_stock_level}</td>
-                    <td className="px-6 py-4 text-right">${item.unit_cost.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-center font-semibold">{stock}</td>
+                    <td className="px-6 py-4 text-center text-gray-600">{minStock}</td>
+                    <td className="px-6 py-4 text-right">${cost.toFixed(2)}</td>
                     <td className="px-6 py-4 text-right font-semibold">${value.toFixed(2)}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
