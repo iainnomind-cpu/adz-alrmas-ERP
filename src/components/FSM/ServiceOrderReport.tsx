@@ -56,13 +56,14 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [isDigitalDiscount, setIsDigitalDiscount] = useState(false);
 
   useEffect(() => {
     loadReport();
   }, [orderId]);
 
   const loadReport = async () => {
-    const [reportData, materialsData] = await Promise.all([
+    const [reportData, materialsData, orderData] = await Promise.all([
       supabase
         .from('service_order_reports')
         .select('*')
@@ -76,7 +77,12 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
             base_price_mxn
           )
         `)
-        .eq('service_order_id', orderId)
+        .eq('service_order_id', orderId),
+      supabase
+        .from('service_orders')
+        .select('discount_applied_digital_card')
+        .eq('id', orderId)
+        .maybeSingle()
     ]);
 
     if (reportData.error) {
@@ -85,6 +91,9 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
       setReport(reportData.data);
       if (materialsData.data) {
         setDetailedMaterials(materialsData.data);
+      }
+      if (orderData.data) {
+        setIsDigitalDiscount(orderData.data.discount_applied_digital_card || false);
       }
     }
     setLoading(false);
@@ -326,30 +335,46 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
                         return sum + ((m.unit_cost ?? 0) * (m.quantity_used || 0));
                       }, 0);
 
-                      const totalDiscount = baseTotalMaterials - netTotalMaterials;
-                      const hasDiscount = totalDiscount > 0.1;
-                      const baseSubtotal = report.labor_cost + baseTotalMaterials;
+                      const baseLaborCost = isDigitalDiscount ? (report.labor_cost / 0.90) : report.labor_cost;
+                      
+                      const precioNormal = baseTotalMaterials + baseLaborCost;
+                      const tierTotalMaterials = isDigitalDiscount ? (netTotalMaterials / 0.90) : netTotalMaterials;
+                      const customerDiscount = baseTotalMaterials - tierTotalMaterials;
+                      const cardDiscount = (tierTotalMaterials - netTotalMaterials) + (baseLaborCost - report.labor_cost);
 
-                      return hasDiscount ? (
+                      return (
                         <>
                           <div className="flex justify-between py-2 border-t border-gray-300">
-                            <span className="text-gray-700">Subtotal Base:</span>
-                            <span className="font-semibold text-gray-900">${baseSubtotal.toFixed(2)}</span>
+                            <span className="text-gray-700">Precio Base:</span>
+                            <span className="font-semibold text-gray-900">${precioNormal.toFixed(2)}</span>
                           </div>
-                          <div className="flex justify-between py-2">
-                            <span className="text-red-600">Descuento:</span>
-                            <span className="font-semibold text-red-600">-${totalDiscount.toFixed(2)}</span>
+                          
+                          {customerDiscount > 0.1 && (
+                            <div className="flex justify-between py-2">
+                              <span className="text-green-600">Descuento del Cliente:</span>
+                              <span className="font-semibold text-green-600">-${customerDiscount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-between py-2 border-t border-gray-300 mt-1 pt-1">
+                            <span className="font-semibold text-gray-800">Subtotal con Descuento del Cliente:</span>
+                            <span className="font-semibold text-gray-900">${(precioNormal - customerDiscount).toFixed(2)}</span>
                           </div>
-                          <div className="flex justify-between py-2">
-                            <span className="font-semibold text-gray-900">Subtotal con Descuento:</span>
-                            <span className="font-semibold text-gray-900">${report.total_cost.toFixed(2)}</span>
-                          </div>
+
+                          {cardDiscount > 0.1 && (
+                            <div className="flex justify-between py-2">
+                              <span className="text-blue-600">Descuento por Tarjeta:</span>
+                              <span className="font-semibold text-blue-600">-${cardDiscount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {cardDiscount > 0.1 && (
+                            <div className="flex justify-between py-2 border-t border-gray-300 mt-1 pt-1">
+                              <span className="font-bold text-gray-900">Subtotal Neto:</span>
+                              <span className="font-bold text-gray-900">${report.total_cost.toFixed(2)}</span>
+                            </div>
+                          )}
                         </>
-                      ) : (
-                        <div className="flex justify-between py-2 border-t border-gray-300">
-                          <span className="font-semibold text-gray-900">SUBTOTAL:</span>
-                          <span className="font-semibold text-gray-900">${report.total_cost.toFixed(2)}</span>
-                        </div>
                       );
                     })()}
                     <div className="flex justify-between py-2">
@@ -612,30 +637,46 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
                         return sum + ((m.unit_cost ?? 0) * (m.quantity_used || 0));
                       }, 0);
 
-                      const totalDiscount = baseTotalMaterials - netTotalMaterials;
-                      const hasDiscount = totalDiscount > 0.1;
-                      const baseSubtotal = report.labor_cost + baseTotalMaterials;
+                      const baseLaborCost = isDigitalDiscount ? (report.labor_cost / 0.90) : report.labor_cost;
+                      
+                      const precioNormal = baseTotalMaterials + baseLaborCost;
+                      const tierTotalMaterials = isDigitalDiscount ? (netTotalMaterials / 0.90) : netTotalMaterials;
+                      const customerDiscount = baseTotalMaterials - tierTotalMaterials;
+                      const cardDiscount = (tierTotalMaterials - netTotalMaterials) + (baseLaborCost - report.labor_cost);
 
-                      return hasDiscount ? (
+                      return (
                         <>
                           <div className="flex justify-between py-1 border-t border-gray-300">
-                            <span className="text-gray-700 text-sm">Subtotal Base:</span>
-                            <span className="font-semibold text-gray-900 text-sm">${baseSubtotal.toFixed(2)}</span>
+                            <span className="text-gray-700 text-sm">Precio Base:</span>
+                            <span className="font-semibold text-gray-900 text-sm">${precioNormal.toFixed(2)}</span>
                           </div>
-                          <div className="flex justify-between py-1">
-                            <span className="text-red-600 text-sm">Descuento:</span>
-                            <span className="font-semibold text-red-600 text-sm">-${totalDiscount.toFixed(2)}</span>
+                          
+                          {customerDiscount > 0.1 && (
+                            <div className="flex justify-between py-1">
+                              <span className="text-green-600 text-sm">Descuento del Cliente:</span>
+                              <span className="font-semibold text-green-600 text-sm">-${customerDiscount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-between py-1 border-t border-gray-300 mt-1 pt-1">
+                            <span className="font-semibold text-gray-800 text-sm">Subtotal con Descuento del Cliente:</span>
+                            <span className="font-semibold text-gray-900 text-sm">${(precioNormal - customerDiscount).toFixed(2)}</span>
                           </div>
-                          <div className="flex justify-between py-1">
-                            <span className="font-semibold text-gray-900 text-sm">Subtotal con Descuento:</span>
-                            <span className="font-semibold text-gray-900 text-sm">${report.total_cost.toFixed(2)}</span>
-                          </div>
+
+                          {cardDiscount > 0.1 && (
+                            <div className="flex justify-between py-1">
+                              <span className="text-blue-600 text-sm">Descuento por Tarjeta:</span>
+                              <span className="font-semibold text-blue-600 text-sm">-${cardDiscount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {cardDiscount > 0.1 && (
+                            <div className="flex justify-between py-1 border-t border-gray-300 mt-1 pt-1">
+                              <span className="font-bold text-gray-900 text-sm">Subtotal Neto:</span>
+                              <span className="font-bold text-gray-900 text-sm">${report.total_cost.toFixed(2)}</span>
+                            </div>
+                          )}
                         </>
-                      ) : (
-                        <div className="flex justify-between py-1 border-t border-gray-300">
-                          <span className="font-semibold text-gray-900 text-sm">SUBTOTAL:</span>
-                          <span className="font-semibold text-gray-900 text-sm">${report.total_cost.toFixed(2)}</span>
-                        </div>
                       );
                     })()}
                     <div className="flex justify-between py-1">

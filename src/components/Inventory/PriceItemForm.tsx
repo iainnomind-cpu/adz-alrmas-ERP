@@ -44,6 +44,7 @@ interface FormData {
     is_active: boolean;
     has_tax: boolean;
     tax_rate: string;
+    location_id: string;
 }
 
 const CATEGORY_LABELS: Record<CategoryType, string> = {
@@ -101,8 +102,19 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         internal_notes: item?.internal_notes || '',
         is_active: item?.is_active ?? true,
         has_tax: item?.has_tax ?? true,
-        tax_rate: item?.tax_rate?.toString() || '16'
+        tax_rate: item?.tax_rate?.toString() || '16',
+        location_id: item?.location_id || ''
     });
+
+    const [locations, setLocations] = useState<{id: string, name: string}[]>([]);
+
+    useEffect(() => {
+        const fetchLocations = async () => {
+            const { data } = await supabase.from('inventory_locations').select('id, name').eq('is_active', true).order('name');
+            if (data) setLocations(data);
+        };
+        fetchLocations();
+    }, []);
 
     // Mostrar campos técnicos solo para dispositivos y sensores
     const showTechnicalFields = ['dispositivo', 'sensor'].includes(formData.category);
@@ -161,6 +173,10 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
     const validateForm = (): string | null => {
         if (!formData.code.trim()) return 'El código es obligatorio';
         if (!formData.name.trim()) return 'El nombre es obligatorio';
+
+        if (!isEditing && showStockFields && !formData.location_id) {
+            return 'Debe seleccionar un almacén o ubicación';
+        }
 
         if (formData.currency === 'USD') {
             if (!formData.supplier_list_price || parseFloat(formData.supplier_list_price) <= 0) {
@@ -257,7 +273,8 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 is_kit: false, // Siempre false - kits no permitidos
                 has_tax: formData.has_tax,
                 tax_rate: finalTaxRate,
-                price_with_tax_mxn: parseFloat(finalPriceWithTax.toFixed(2))
+                price_with_tax_mxn: parseFloat(finalPriceWithTax.toFixed(2)),
+                location_id: (showStockFields && formData.location_id) ? formData.location_id : null
             };
 
             if (isEditing && item) {
@@ -268,11 +285,44 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
 
                 if (updateError) throw updateError;
             } else {
-                const { error: insertError } = await supabase
+                const { data: insertedData, error: insertError } = await supabase
                     .from('price_list')
-                    .insert([dataToSave] as any);
+                    .insert([dataToSave] as any)
+                    .select()
+                    .single();
 
                 if (insertError) throw insertError;
+                
+                // Integración de Almacenes para producto nuevo
+                const productData = insertedData as any;
+                if (showStockFields && formData.location_id && productData) {
+                    const initialStock = parseInt(formData.stock_quantity) || 0;
+                    
+                    if (initialStock > 0) {
+                        const { error: txError } = await supabase
+                            .from('inventory_transactions')
+                            .insert([{
+                                product_id: productData.id,
+                                transaction_type: 'adjustment_in',
+                                quantity: initialStock,
+                                unit_cost: productData.cost_price_mxn || 0,
+                                total_cost: initialStock * (productData.cost_price_mxn || 0),
+                                to_location_id: formData.location_id,
+                                notes: 'Stock inicial al crear producto'
+                            }] as any);
+                        if (txError) throw txError;
+                    } else {
+                        // Vincular el producto al almacén pero con stock 0
+                        const { error: stockError } = await supabase
+                            .from('inventory_location_stock')
+                            .insert([{
+                                product_id: productData.id,
+                                location_id: formData.location_id,
+                                quantity: 0
+                            }] as any);
+                        if (stockError && stockError.code !== '23505') throw stockError;
+                    }
+                }
             }
 
             onSuccess();
@@ -806,6 +856,29 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                             No (kits no permitidos)
                                         </div>
                                     </div>
+
+                                    {!isEditing && showStockFields && (
+                                        <div className="md:col-span-3 mt-4">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Almacén / Ubicación Inicial <span className="text-red-600">*</span>
+                                            </label>
+                                            <select
+                                                title="Almacén de inicio"
+                                                value={formData.location_id}
+                                                onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
+                                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                                    !formData.location_id ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                                }`}
+                                                required={!isEditing && showStockFields}
+                                            >
+                                                <option value="">Seleccionar almacén...</option>
+                                                {locations.map((loc) => (
+                                                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-xs text-gray-500 mt-1">Éste será el almacén donde se registrará el inventario físico de esta nueva alta.</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

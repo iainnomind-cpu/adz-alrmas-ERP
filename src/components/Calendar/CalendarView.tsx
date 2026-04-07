@@ -1102,99 +1102,101 @@ export function CalendarView() {
             />
           )}
 
-          <div className="flex-1">
+          <div className="flex-1 overflow-hidden">
             {viewMode === 'month' ? (
-              <div className="p-6">
-                <div className="grid grid-cols-7 gap-2 mb-4">
-                  {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (
-                    <div key={day} className="text-center font-semibold text-gray-700 py-2 text-sm">
-                      {day}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-7 gap-2">
-                  {calendarDays.map((dayCell, index) => {
-                    const isDropZone = dragOverDate?.toDateString() === dayCell.date.toDateString();
-                    const isValidZone = isValidDropZone(dayCell.date);
-                    const showPreview = isDropZone && (draggedEvent || draggedConcept) && isValidZone;
-
-                    return (
-                      <div
-                        key={index}
-                        onDragOver={(e) => handleDragOver(e, dayCell.date)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, dayCell.date)}
-                        className={`min-h-[120px] border rounded-lg p-2 transition-all ${dayCell.isCurrentMonth
-                          ? 'bg-white border-gray-200'
-                          : 'bg-gray-50 border-gray-100'
-                          } ${dayCell.isToday
-                            ? 'ring-2 ring-blue-500 border-blue-500'
-                            : ''
-                          } ${(isDropZone && (isDragging || draggedConcept))
-                            ? isValidZone
-                              ? 'bg-green-50 border-2 border-green-400 shadow-lg scale-105'
-                              : 'bg-red-50 border-2 border-red-400'
-                            : 'hover:shadow-md'
-                          }`}
-                      >
-                        <div className={`text-sm font-semibold mb-2 ${dayCell.isToday
-                          ? 'text-blue-600'
-                          : dayCell.isCurrentMonth
-                            ? 'text-gray-900'
-                            : 'text-gray-400'
-                          }`}>
-                          {dayCell.date.getDate()}
-                        </div>
-
-                        <div className="space-y-1">
-                          {showPreview && (
-                            <div
-                              className={`opacity-50 text-white text-xs px-2 py-1 rounded border-2 border-white animate-pulse`}
-                              style={{ backgroundColor: draggedEvent ? draggedEvent.color : '#10B981' }} // Use green for concept preview
-                            >
-                              <div className="flex items-center gap-1 truncate">
-                                <Clock className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">
-                                  {(draggedEvent?.id.startsWith('concept-') || !draggedEvent)
-                                    ? (draggedEvent?.title || draggedConcept?.title || 'Concepto sin título')
-                                    : draggedEvent.title.split(' - ')[0]}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {dayCell.events.slice(0, 3).map((event) => {
-                            const isBeingDragged = draggedEvent?.id === event.id;
-
-                            return (
-                              <EventCard
-                                key={event.id}
-                                event={event}
-                                size="small"
-                                onClick={() => setSelectedEventDetail(event)}
-                                onDragStart={(e) => handleDragStart(e, event)}
-                                onDragEnd={handleDragEnd}
-                                onMouseEnter={(e) => handleEventHover(e, event)}
-                                onMouseLeave={handleEventLeave}
-                                isBeingDragged={isBeingDragged}
-                                selectable={multiSelectMode}
-                                isSelected={selectedEvents.has(event.id)}
-                                onSelect={() => toggleEventSelection(event.id)}
-                                visibleFields={calendarSettings.visibleFields}
-                              />
-                            );
-                          })}
-
-                          {dayCell.events.length > 3 && (
-                            <div className="text-xs text-gray-600 font-medium px-2">
-                              +{dayCell.events.length - 3} más
-                            </div>
-                          )}
-                        </div>
+              <div className="p-4 sm:p-6 overflow-x-auto">
+                <div className="min-w-[800px]">
+                  <div className="grid grid-cols-7 gap-2 mb-4">
+                    {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (
+                      <div key={day} className="text-center font-semibold text-gray-700 py-2 text-sm">
+                        {day}
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-2">
+                    {calendarDays.map((dayCell, index) => {
+                      const isDropZone = dragOverDate?.toDateString() === dayCell.date.toDateString();
+                      const isValidZone = isValidDropZone(dayCell.date);
+                      const showPreview = isDropZone && (draggedEvent || draggedConcept) && isValidZone;
+
+                      return (
+                        <div
+                          key={index}
+                          onDragOver={(e) => handleDragOver(e, dayCell.date)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, dayCell.date)}
+                          className={`min-h-[120px] border rounded-lg p-2 transition-all ${dayCell.isCurrentMonth
+                            ? 'bg-white border-gray-200'
+                            : 'bg-gray-50 border-gray-100'
+                            } ${dayCell.isToday
+                              ? 'ring-2 ring-blue-500 border-blue-500'
+                              : ''
+                            } ${(isDropZone && (isDragging || draggedConcept))
+                              ? isValidZone
+                                ? 'bg-green-50 border-2 border-green-400 shadow-lg scale-105'
+                                : 'bg-red-50 border-2 border-red-400'
+                              : 'hover:shadow-md'
+                            }`}
+                        >
+                          <div className={`text-sm font-semibold mb-2 ${dayCell.isToday
+                            ? 'text-blue-600'
+                            : dayCell.isCurrentMonth
+                              ? 'text-gray-900'
+                              : 'text-gray-400'
+                            }`}>
+                            {dayCell.date.getDate()}
+                          </div>
+
+                          <div className="space-y-1">
+                            {showPreview && (
+                              <div
+                                className={`opacity-50 text-white text-xs px-2 py-1 rounded border-2 border-white animate-pulse`}
+                                style={{ backgroundColor: draggedEvent ? draggedEvent.color : '#10B981' }} // Use green for concept preview
+                              >
+                                <div className="flex items-center gap-1 truncate">
+                                  <Clock className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">
+                                    {(draggedEvent?.id.startsWith('concept-') || !draggedEvent)
+                                      ? (draggedEvent?.title || draggedConcept?.title || 'Concepto sin título')
+                                      : draggedEvent.title.split(' - ')[0]}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {dayCell.events.slice(0, 3).map((event) => {
+                              const isBeingDragged = draggedEvent?.id === event.id;
+
+                              return (
+                                <EventCard
+                                  key={event.id}
+                                  event={event}
+                                  size="small"
+                                  onClick={() => setSelectedEventDetail(event)}
+                                  onDragStart={(e) => handleDragStart(e, event)}
+                                  onDragEnd={handleDragEnd}
+                                  onMouseEnter={(e) => handleEventHover(e, event)}
+                                  onMouseLeave={handleEventLeave}
+                                  isBeingDragged={isBeingDragged}
+                                  selectable={multiSelectMode}
+                                  isSelected={selectedEvents.has(event.id)}
+                                  onSelect={() => toggleEventSelection(event.id)}
+                                  visibleFields={calendarSettings.visibleFields}
+                                />
+                              );
+                            })}
+
+                            {dayCell.events.length > 3 && (
+                              <div className="text-xs text-gray-600 font-medium px-2">
+                                +{dayCell.events.length - 3} más
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ) : viewMode === 'week' ? (
@@ -1234,8 +1236,8 @@ export function CalendarView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-blue-600" />
             Resumen de Eventos

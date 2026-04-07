@@ -321,10 +321,10 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
-      <div className="min-h-screen px-4 py-8 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl">
-          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 rounded-t-2xl flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">Nueva Orden de Servicio</h2>
+      <div className="min-h-screen p-4 flex flex-col items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-auto">
+          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-4 sm:px-8 py-4 sm:py-6 rounded-t-2xl flex items-center justify-between">
+            <h2 className="text-xl sm:text-2xl font-bold text-white">Nueva Orden de Servicio</h2>
             <button
               onClick={onClose}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
@@ -333,14 +333,14 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-4 sm:space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
 
-            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-6">
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-4 sm:p-6">
               <label className="block text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-600" />
                 Serie de Folio <span className="text-red-600">*</span>
@@ -623,7 +623,7 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Folio de Central de Monitoreo
@@ -663,18 +663,18 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
               />
             </div>
 
-            <div className="flex gap-4 justify-end pt-6 border-t border-gray-200">
+            <div className="flex flex-col-reverse sm:flex-row gap-3 pt-6 border-t border-gray-200">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="w-full sm:w-auto px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-center"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="w-full sm:w-auto sm:ml-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
               >
                 {loading ? (
                   <>

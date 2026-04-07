@@ -33,6 +33,7 @@ export function NewProductForm({ onClose, onSuccess }: NewProductFormProps) {
   const [error, setError] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [locations, setLocations] = useState<{id: string, name: string}[]>([]);
 
   // Campos de pricing helpers (solo UI)
   const [currency, setCurrency] = useState<CurrencyType>('USD');
@@ -58,7 +59,8 @@ export function NewProductForm({ onClose, onSuccess }: NewProductFormProps) {
     primary_supplier_id: '',
     is_serialized: false,
     is_active: true,
-    initial_quantity: 0
+    initial_quantity: 0,
+    warehouse_id: ''
   });
 
   useEffect(() => {
@@ -66,13 +68,15 @@ export function NewProductForm({ onClose, onSuccess }: NewProductFormProps) {
   }, []);
 
   const loadCategoriesAndSuppliers = async () => {
-    const [categoriesData, suppliersData] = await Promise.all([
+    const [categoriesData, suppliersData, locationsData] = await Promise.all([
       supabase.from('inventory_categories').select('id, name').eq('is_active', true).order('name'),
-      supabase.from('inventory_suppliers').select('id, name').eq('is_active', true).order('name')
+      supabase.from('inventory_suppliers').select('id, name').eq('is_active', true).order('name'),
+      supabase.from('inventory_locations').select('id, name').eq('is_active', true).order('name')
     ]);
 
     if (categoriesData.data) setCategories(categoriesData.data);
     if (suppliersData.data) setSuppliers(suppliersData.data);
+    if (locationsData.data) setLocations(locationsData.data);
   };
 
   const generateSKU = () => {
@@ -122,6 +126,12 @@ export function NewProductForm({ onClose, onSuccess }: NewProductFormProps) {
       return;
     }
 
+    if (!formData.warehouse_id) {
+      setError('Debe seleccionar un almacén para el producto');
+      setLoading(false);
+      return;
+    }
+
     if (formData.selling_price <= 0) {
       setError('El precio de venta al público es obligatorio');
       setLoading(false);
@@ -129,7 +139,7 @@ export function NewProductForm({ onClose, onSuccess }: NewProductFormProps) {
     }
 
     try {
-      const { data: product, error: productError } = await supabase
+      const { data, error: productError } = await supabase
         .from('inventory_products')
         .insert([{
           sku: formData.sku,
@@ -148,25 +158,41 @@ export function NewProductForm({ onClose, onSuccess }: NewProductFormProps) {
           primary_supplier_id: formData.primary_supplier_id || null,
           is_serialized: formData.is_serialized,
           is_active: formData.is_active
-        }])
+        }] as any)
         .select()
         .single();
 
       if (productError) throw productError;
+      
+      const product = data as any;
 
-      if (formData.initial_quantity > 0 && product) {
-        const { error: transactionError } = await supabase
-          .from('inventory_transactions')
-          .insert([{
-            product_id: product.id,
-            transaction_type: 'adjustment_in',
-            quantity: formData.initial_quantity,
-            unit_cost: formData.unit_cost,
-            total_cost: formData.initial_quantity * formData.unit_cost,
-            notes: 'Stock inicial del producto'
-          }]);
+      if (product) {
+        if (formData.initial_quantity > 0) {
+          const { error: transactionError } = await supabase
+            .from('inventory_transactions')
+            .insert([{
+              product_id: product.id,
+              transaction_type: 'adjustment_in',
+              quantity: formData.initial_quantity,
+              unit_cost: formData.unit_cost,
+              total_cost: formData.initial_quantity * formData.unit_cost,
+              to_location_id: formData.warehouse_id,
+              notes: 'Stock inicial del producto'
+            }] as any);
 
-        if (transactionError) throw transactionError;
+          if (transactionError) throw transactionError;
+        } else {
+          // Ligar el producto con el almacén con stock 0
+          const { error: stockError } = await supabase
+            .from('inventory_location_stock')
+            .insert([{
+              product_id: product.id,
+              location_id: formData.warehouse_id,
+              quantity: 0
+            }] as any);
+            
+          if (stockError && stockError.code !== '23505') throw stockError; // Ignora conflicto si existe
+        }
       }
 
       onSuccess();
@@ -295,6 +321,25 @@ export function NewProductForm({ onClose, onSuccess }: NewProductFormProps) {
                     <option value="">Seleccionar proveedor</option>
                     {suppliers.map((sup) => (
                       <option key={sup.id} value={sup.id}>{sup.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Almacén / Ubicación <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={formData.warehouse_id}
+                    onChange={(e) => handleChange('warehouse_id', e.target.value)}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      !formData.warehouse_id ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
+                    required
+                  >
+                    <option value="">Seleccionar almacén...</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>{loc.name}</option>
                     ))}
                   </select>
                 </div>

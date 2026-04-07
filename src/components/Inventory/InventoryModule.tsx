@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { LocationStockView } from './LocationStockView';
 import { LocationManager } from './LocationManager';
 import { StockMovements } from './StockMovements';
@@ -9,9 +10,14 @@ import { TrendingUp, DollarSign, MapPin, ClipboardList, Settings } from 'lucide-
 type TabType = 'locations' | 'manage-locations' | 'requests' | 'products' | 'prices' | 'movements';
 
 export function InventoryModule() {
-  const [activeTab, setActiveTab] = useState<TabType>('prices');
+  const { isAdmin } = usePermissions();
+  const [activeTab, setActiveTab] = useState<TabType>('requests');
 
-  const tabs = [
+  useEffect(() => {
+    setActiveTab(isAdmin ? 'prices' : 'requests');
+  }, [isAdmin]);
+
+  const allTabs = [
     { id: 'prices' as TabType, label: 'Productos y Precios', icon: DollarSign },
     { id: 'locations' as TabType, label: 'Distribución por Ubicación', icon: MapPin },
     { id: 'requests' as TabType, label: 'Solicitudes', icon: ClipboardList },
@@ -19,7 +25,11 @@ export function InventoryModule() {
     { id: 'manage-locations' as TabType, label: 'Ajustes de Almacén', icon: Settings }
   ];
 
+  const tabs = isAdmin ? allTabs : allTabs.filter(t => t.id === 'requests');
+
   const renderContent = () => {
+    if (!isAdmin && activeTab !== 'requests') return null; // Fallback in case of invalid state
+
     switch (activeTab) {
       case 'locations':
         return <LocationStockView />;
@@ -32,7 +42,7 @@ export function InventoryModule() {
       case 'movements':
         return <StockMovements />;
       default:
-        return <PriceListManager />;
+        return <MaterialRequests />;
     }
   };
 

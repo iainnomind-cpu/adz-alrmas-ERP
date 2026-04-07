@@ -15,13 +15,13 @@ export const CardValidationService = {
    */
   async validateScannedCard(data: CardValidationContext): Promise<any> {
     const { cardNumber, targetCustomerId } = data;
-
     try {
-      // 1. Obtener la tarjeta cruda basándose en el número
+      // 1. Obtener la tarjeta cruda por número (sin filtrar por cliente aún para poder diferenciar tipos)
       const { data: card, error: cardError } = await (supabase
         .from('customer_digital_cards')
         .select('*')
         .eq('card_number', cardNumber)
+        .eq('is_active', true)
         .maybeSingle() as any);
 
       if (cardError) {
@@ -29,18 +29,9 @@ export const CardValidationService = {
       }
 
       // Validaciones Negativas
-      let failureReason = null;
-
       if (!card) {
-        failureReason = 'Tarjeta no encontrada en el sistema';
-      } else if (card.customer_id !== targetCustomerId) {
-        failureReason = 'La tarjeta no está asociada a este cliente';
-      } else if (!card.is_active) {
-        failureReason = 'La tarjeta se encuentra bloqueada o inactiva';
-      }
-
-      // Si hay una falla de validación, registramos el falso positivo y explotamos con alerta
-      if (failureReason) {
+        const failureReason = 'La tarjeta no fue encontrada o se encuentra inactiva';
+        
         await this.logAccessAttempt({
           ...data,
           isSuccessful: false,
@@ -49,7 +40,21 @@ export const CardValidationService = {
         throw new Error(failureReason);
       }
 
-      // 2. Si la tarjeta es totalmente válida, registramos éxito y la retornamos
+      // Validación Condicional (Titular vs Familiar)
+      if (card.card_type === 'titular' && card.customer_id !== targetCustomerId) {
+        const failureReason = 'La tarjeta titular no pertenece al cliente de esta orden';
+        
+        await this.logAccessAttempt({
+          ...data,
+          isSuccessful: false,
+          failureReason
+        });
+        throw new Error(failureReason);
+      }
+      
+      // Si es 'familiar', NO requiere coincidencia con targetCustomerId. Se aprueba automáticamente.
+
+      // 2. Si la tarjeta superó todas las reglas, registramos éxito y la retornamos
       await this.logAccessAttempt({
         ...data,
         isSuccessful: true
