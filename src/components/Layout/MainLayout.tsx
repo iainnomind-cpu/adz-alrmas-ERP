@@ -41,7 +41,7 @@ const sidebarToModuleMap: Record<string, string> = {
 export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { signOut, user } = useAuth();
-  const { hasModuleAccess, isAdmin } = usePermissions();
+  const { hasModuleAccess, isAdmin, userRole } = usePermissions();
 
   const handleSignOut = async () => {
     try {
@@ -80,6 +80,7 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
     if (!module) return true; // always show if no mapping
     if (module === 'dashboard') return true; // dashboard always visible
     if (module === 'settings') return isAdmin || hasModuleAccess('settings');
+    if (module === 'inventory' && userRole === 'technician') return true;
     return hasModuleAccess(module);
   });
 

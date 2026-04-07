@@ -1,0 +1,316 @@
+﻿diff --git a/src/components/FSM/CompleteServiceForm.tsx b/src/components/FSM/CompleteServiceForm.tsx
+index 69bfff3..9e775f2 100644
+--- a/src/components/FSM/CompleteServiceForm.tsx
++++ b/src/components/FSM/CompleteServiceForm.tsx
+@@ -1,4 +1,5 @@
+ import { useState, useRef, useEffect } from 'react';
++import { CardValidationService } from '../../services/CardValidationService';
+ import { supabase } from '../../lib/supabase';
+ import { QRScannerModal } from '../CRM/QRScannerModal';
+ import {
+@@ -94,6 +95,7 @@ export function CompleteServiceForm({
+   const [customerId, setCustomerId] = useState('');
+   const [discountApplied, setDiscountApplied] = useState(false);
+   const [currentTotalCost, setCurrentTotalCost] = useState(totalCost);
++  const [cardDiscountAmount, setCardDiscountAmount] = useState<number>(0);
+ 
+   const canvasRef = useRef<HTMLCanvasElement>(null);
+   const [signatureData, setSignatureData] = useState<string>('');
+@@ -107,7 +109,7 @@ export function CompleteServiceForm({
+     try {
+       const { data: serviceOrder, error: orderError } = await supabase
+         .from('service_orders')
+-        .select('service_type, customer_id, total_cost')
++        .select('service_type, customer_id, total_cost, discount_applied_digital_card')
+         .eq('id', orderId)
+         .maybeSingle();
+ 
+@@ -123,6 +125,7 @@ export function CompleteServiceForm({
+         setServiceType(serviceOrder.service_type);
+         setCustomerId(serviceOrder.customer_id);
+         setCurrentTotalCost(serviceOrder.total_cost);
++        setDiscountApplied(serviceOrder.discount_applied_digital_card || false);
+ 
+         // Always load equipment materials for any service type
+         await loadEquipmentMaterials(serviceOrder.customer_id);
+@@ -304,9 +307,10 @@ export function CompleteServiceForm({
+     }
+   };
+ 
+-  const applyDigitalDiscount = async (customerId: string) => {
++  const applyDigitalDiscount = async (customerId: string): Promise<number> => {
+     try {
+       setLoading(true);
++      let totalSavedAmount = 0;
+ 
+       // 1. Get Customer Tier
+       const { data: customer } = await supabase
+@@ -334,32 +338,31 @@ export function CompleteServiceForm({
+          `)
+         .eq('service_order_id', orderId);
+ 
+-      if (!materials) return;
+-
+       let totalNewMaterialsCost = 0;
+ 
+-      // 3. Update Materials
+-      for (const m of materials) {
+-        const item = m.inventory_items;
+-        if (!item) continue;
+-
+-        const isEquip = isEquipmentCategory(item.category || '');
+-        let newUnitCost = m.unit_cost;
+-
+-        if (isEquip) {
+-          // Re-calculate base tier price
+-          let discountPercent = 0;
+-          switch (tier) {
+-            case 1: discountPercent = item.discount_tier_1 || 0; break;
+-            case 2: discountPercent = item.discount_tier_2 || 0; break;
+-            case 3: discountPercent = item.discount_tier_3 || 0; break;
+-            case 4: discountPercent = item.discount_tier_4 || 0; break;
+-            case 5: discountPercent = item.discount_tier_5 || 0; break;
++      // 3. Update Materials (Apply discount to everything)
++      if (materials && materials.length > 0) {
++        for (const m of materials) {
++          const item = m.inventory_items;
++          let newUnitCost = m.unit_cost || 0;
++          let baseForDiscount = m.unit_cost || 0;
++
++          // If it's equipment, recalculate tier price first
++          if (item && isEquipmentCategory(item.category || '')) {
++            let discountPercent = 0;
++            switch (tier) {
++              case 1: discountPercent = item.discount_tier_1 || 0; break;
++              case 2: discountPercent = item.discount_tier_2 || 0; break;
++              case 3: discountPercent = item.discount_tier_3 || 0; break;
++              case 4: discountPercent = item.discount_tier_4 || 0; break;
++              case 5: discountPercent = item.discount_tier_5 || 0; break;
++            }
++            baseForDiscount = item.base_price_mxn * (1 - (discountPercent / 100));
+           }
+ 
+-          const tierPrice = item.base_price_mxn * (1 - (discountPercent / 100));
+-          // Apply 10% Digital Card Discount
+-          newUnitCost = parseFloat((tierPrice * 0.90).toFixed(2));
++          // Apply 10% Digital Card Discount to the baseForDiscount
++          newUnitCost = parseFloat((baseForDiscount * 0.90).toFixed(2));
++          totalSavedAmount += (baseForDiscount - newUnitCost) * m.quantity_used;
+ 
+           // Update database record
+           await supabase
+@@ -369,25 +372,32 @@ export function CompleteServiceForm({
+               total_cost: newUnitCost * m.quantity_used
+             })
+             .eq('id', m.id);
+-        }
+ 
+-        totalNewMaterialsCost += (newUnitCost * m.quantity_used);
++          totalNewMaterialsCost += (newUnitCost * m.quantity_used);
++        }
+       }
+ 
+-      // 4. Update Order Total
++      // 4. Update Order Total (Apply 10% to labor too)
+       const { data: order } = await supabase
+         .from('service_orders')
+-        .select('labor_cost')
++        .select('labor_cost, materials_cost')
+         .eq('id', orderId)
+         .single();
+ 
+-      const labor = order?.labor_cost || 0;
+-      const newTotal = labor + totalNewMaterialsCost;
++      const origLabor = order?.labor_cost || 0;
++      const origMaterials = order?.materials_cost || 0;
++
++      const newLaborCost = parseFloat((origLabor * 0.90).toFixed(2));
++      totalSavedAmount += (origLabor - newLaborCost);
++
++      const finalMaterialsCost = materials && materials.length > 0 ? totalNewMaterialsCost : origMaterials;
++      const newTotal = newLaborCost + finalMaterialsCost;
+ 
+       await supabase
+         .from('service_orders')
+         .update({
+-          materials_cost: totalNewMaterialsCost,
++          labor_cost: newLaborCost,
++          materials_cost: finalMaterialsCost,
+           total_cost: newTotal,
+           discount_applied_digital_card: true
+         } as any)
+@@ -395,11 +405,12 @@ export function CompleteServiceForm({
+ 
+       setCurrentTotalCost(newTotal);
+       setDiscountApplied(true);
+-      // Show success message or badge
++      return parseFloat(totalSavedAmount.toFixed(2));
+ 
+     } catch (e) {
+       console.error('Error applying discount:', e);
+       setError('Error aplicando descuento');
++      return 0;
+     } finally {
+       setLoading(false);
+     }
+@@ -474,23 +485,27 @@ export function CompleteServiceForm({
+ 
+   const handleQRScanSuccess = async (cardData: any) => {
+     try {
+-      const { data: card, error: cardError } = await supabase
+-        .from('customer_digital_cards')
+-        .select('*')
+-        .eq('card_number', cardData.cardNumber)
+-        .eq('is_active', true)
+-        .maybeSingle();
++      const { data } = await supabase.auth.getUser();
++
++      const card = await CardValidationService.validateScannedCard({
++        cardNumber: cardData.cardNumber,
++        targetCustomerId: customerId,
++        userId: data.user?.id,
++        serviceOrderId: orderId,
++        contextMessage: `Orden de servicio #${orderId}`
++      });
+ 
+-      if (cardError || !card) {
+-        setError('Tarjeta no encontrada o inactiva');
++      if (!card) {
+         setShowQRScanner(false);
+         return;
+       }
+ 
++      // Validacion adicional de expiraci├│n (por fecha l├¡mite particular del componente legacy QR)
+       if (cardData.validUntil) {
+         const validDate = new Date(cardData.validUntil);
+         if (validDate < new Date()) {
+-          setError('Esta tarjeta ha expirado o est├í bloqueada');
++          // Loggear the fake expiration as failure if needed or just error
++          setError('Esta tarjeta ha expirado');
+           setShowQRScanner(false);
+           return;
+         }
+@@ -519,12 +534,13 @@ export function CompleteServiceForm({
+         setSignerName(card.cardholder_name);
+       }
+ 
+-      // Apply Discount Logic
++      // Aplicar el descuento validado (Titular o Familiar)
++      // Nota: Mantenemos la regla de negocio original: NO aplica en nuevas instalaciones
+       if (serviceType === 'installation') {
+-        // setError('El descuento no aplica para instalaciones (Tarjeta registrada)');
+-        // Just notify but don't error out the flow
++        // No aplicamos descuento para instalaciones
+       } else if (!discountApplied) {
+-        await applyDigitalDiscount(customerId);
++        const savedAmount = await applyDigitalDiscount(customerId);
++        setCardDiscountAmount(savedAmount);
+       }
+ 
+       setShowQRScanner(false);
+@@ -881,9 +897,9 @@ export function CompleteServiceForm({
+           document_type: billingDocumentType,
+           issue_date: completedAt,
+           due_date: paymentMethod === 'cash' ? completedAt : dueDate.toISOString(),
+-          subtotal: serviceOrder.total_cost,
++          subtotal: serviceOrder.total_cost + cardDiscountAmount,
+           tax: taxAmount,
+-          discount: 0,
++          discount: cardDiscountAmount,
+           total: totalAmount,
+           paid_amount: paymentMethod === 'cash' ? totalAmount : partialPayment,
+           balance: paymentMethod === 'cash' ? 0 : (totalAmount - partialPayment),
+@@ -989,24 +1005,24 @@ export function CompleteServiceForm({
+ 
+   return (
+     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+-      <div className="min-h-screen px-4 py-8 flex items-center justify-center">
+-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl">
+-          <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-6 rounded-t-2xl flex items-center justify-between">
++      <div className="min-h-screen p-4 flex flex-col items-center justify-center">
++        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-auto">
++          <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-4 sm:px-8 py-4 sm:py-6 rounded-t-2xl flex items-center justify-between">
+             <div className="flex items-center gap-3">
+               <div className="p-2 bg-white/20 rounded-lg">
+                 <CheckCircle2 className="w-6 h-6 text-white" />
+               </div>
+-              <h2 className="text-2xl font-bold text-white">Completar Servicio</h2>
++              <h2 className="text-xl sm:text-2xl font-bold text-white">Completar Servicio</h2>
+             </div>
+             <button
+               onClick={onClose}
+-              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
++              className="p-2 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0"
+             >
+               <X className="w-6 h-6 text-white" />
+             </button>
+           </div>
+ 
+-          <div className="p-8 space-y-6">
++          <div className="p-4 sm:p-8 space-y-4 sm:space-y-6">
+             {error && (
+               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                 {error}
+@@ -1070,7 +1086,7 @@ export function CompleteServiceForm({
+               <label className="block text-sm font-medium text-gray-700 mb-3">
+                 M├®todo de Pago <span className="text-red-600">*</span>
+               </label>
+-              <div className="grid grid-cols-2 gap-4">
++              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                 <button
+                   onClick={() => setPaymentMethod('cash')}
+                   className={`p-4 border-2 rounded-xl transition-all ${paymentMethod === 'cash'
+@@ -1150,13 +1166,13 @@ export function CompleteServiceForm({
+                       </p>
+                     </div>
+ 
+-                    <div className="bg-white rounded-lg p-4 border border-amber-200">
+-                      <div className="grid grid-cols-2 gap-4 text-sm">
+-                        <div>
++                    <div className="bg-white rounded-lg p-3 sm:p-4 border border-amber-200">
++                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
++                        <div className="flex justify-between sm:justify-start">
+                           <span className="text-gray-600">Anticipo:</span>
+                           <span className="ml-2 font-bold text-green-600">${partialPayment.toFixed(2)}</span>
+                         </div>
+-                        <div>
++                        <div className="flex justify-between sm:justify-start">
+                           <span className="text-gray-600">Deuda restante:</span>
+                           <span className="ml-2 font-bold text-red-600">${((currentTotalCost * 1.16) - partialPayment).toFixed(2)}</span>
+                         </div>
+@@ -1397,12 +1413,10 @@ export function CompleteServiceForm({
+                   Limpiar
+                 </button>
+               </div>
+-              <div className="border-2 border-gray-300 rounded-lg overflow-hidden">
++              <div className="border-2 border-gray-300 rounded-lg overflow-hidden w-full aspect-[3/1] min-h-[150px]">
+                 <canvas
+                   ref={canvasRef}
+-                  width={600}
+-                  height={200}
+-                  className="w-full touch-none bg-gray-50 cursor-crosshair"
++                  className="w-full h-full touch-none bg-gray-50 cursor-crosshair"
+                   onMouseDown={startDrawing}
+                   onMouseMove={draw}
+                   onMouseUp={stopDrawing}
+@@ -1438,17 +1452,17 @@ export function CompleteServiceForm({
+               </ul>
+             </div>
+ 
+-            <div className="flex gap-4 pt-6 border-t border-gray-200">
++            <div className="flex flex-col-reverse sm:flex-row gap-3 pt-6 border-t border-gray-200">
+               <button
+                 onClick={onClose}
+-                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
++                className="w-full sm:w-auto flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-center"
+               >
+                 Cancelar
+               </button>
+               <button
+                 onClick={handleComplete}
+                 disabled={loading}
+-                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
++                className="w-full sm:w-auto flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+               >
+                 {loading ? (
+                   <>

@@ -58,6 +58,7 @@ export interface PriceListItem {
   exchange_rate: number;
   supplier_list_price: number | null;
   supplier_discount_percentage: number;
+  location_id: string | null;
   base_price_mxn: number;
   discount_tier_1: number;
   discount_tier_2: number;
