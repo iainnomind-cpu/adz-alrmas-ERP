@@ -26,6 +26,8 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [series, setSeries] = useState<any[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<InventoryItem[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [locationStocks, setLocationStocks] = useState<Record<string, Record<string, number>>>({});
   const [searchTerm, setSearchTerm] = useState('');
 
   const [formData, setFormData] = useState({
@@ -41,6 +43,7 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
     monitoring_center_folio: '',
     scheduled_date: '',
     equipment_to_install: '',
+    equipment_location_id: '',
     equipment_serial_number: ''
   });
 
@@ -49,7 +52,25 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
     loadCustomers();
     loadTechnicians();
     loadEquipmentItems();
+    loadLocations();
+    loadLocationStocks();
   }, []);
+
+  const loadLocationStocks = async () => {
+    try {
+      const { data } = await supabase.from('inventory_location_stock').select('product_id, location_id, quantity');
+      const stocks: Record<string, Record<string, number>> = {};
+      if (data) {
+        data.forEach((ls: any) => {
+          if (!stocks[ls.product_id]) stocks[ls.product_id] = {};
+          stocks[ls.product_id][ls.location_id] = ls.quantity;
+        });
+      }
+      setLocationStocks(stocks);
+    } catch (e) {
+      console.error('Error loading location stocks:', e);
+    }
+  };
 
   useEffect(() => {
     if (formData.customer_id) {
@@ -68,6 +89,22 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
     }
 
     if (data) setCustomers(data);
+  };
+
+  const loadLocations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('inventory_locations')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (!error && data) {
+        setLocations(data);
+      }
+    } catch (e) {
+      console.error('Error loading locations:', e);
+    }
   };
 
   const loadAssets = async (customerId: string) => {
@@ -173,6 +210,12 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
       return;
     }
 
+    if (formData.service_type === 'installation' && formData.equipment_to_install && !formData.equipment_location_id) {
+      setError('Debe seleccionar el almacén origen del equipo a instalar');
+      setLoading(false);
+      return;
+    }
+
     if (formData.service_type === 'installation' && formData.equipment_to_install) {
       const selectedEquipment = equipmentItems.find(item => item.id === formData.equipment_to_install);
 
@@ -186,6 +229,15 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
         setError('El equipo seleccionado no tiene stock disponible. Por favor agregue stock en el módulo de Inventario.');
         setLoading(false);
         return;
+      }
+
+      if (formData.equipment_location_id) {
+        const availableInLocation = locationStocks[selectedEquipment.id]?.[formData.equipment_location_id] || 0;
+        if (availableInLocation <= 0) {
+          setError('El equipo seleccionado no tiene stock en el almacén elegido.');
+          setLoading(false);
+          return;
+        }
       }
     }
 
@@ -250,34 +302,47 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
           unit_cost: selectedEquipment.unit_cost,
         });
 
-        const { error: materialError } = await supabase
+        const { data: insertedMaterials, error: materialError } = await supabase
           .from('service_order_materials')
           .insert([{
             service_order_id: newOrder.id,
             inventory_item_id: formData.equipment_to_install,
+            location_id: formData.equipment_location_id,
             quantity_used: 1,
             unit_cost: selectedEquipment.unit_cost,
             total_cost: selectedEquipment.unit_cost,
             serial_number: formData.equipment_serial_number || null,
             installation_notes: `Equipo para instalación: ${selectedEquipment.name}`
-          }] as any);
+          }] as any)
+          .select('id');
 
         if (materialError) {
           console.error('Material insert error:', materialError);
           throw new Error(`Error al registrar material: ${materialError.message}`);
         }
 
-        // Actualizar stock en price_list
-        const { error: inventoryError } = await supabase
-          .from('price_list')
-          .update({
-            stock_quantity: selectedEquipment.quantity_available - 1
-          } as any)
-          .eq('id', formData.equipment_to_install);
+        // Crear transacción de inventario (salida) para descontar stock ubicacional y global
+        if ((insertedMaterials as any[])?.length > 0) {
+          const { error: inventoryError } = await supabase
+            .from('inventory_transactions')
+            .insert({
+              product_id: formData.equipment_to_install,
+              transaction_type: 'usage',
+              quantity: 1,
+              unit_cost: 0,
+              total_cost: 0,
+              reference_type: 'servicio',
+              reference_id: newOrder.id,
+              service_order_id: newOrder.id,
+              from_location_id: formData.equipment_location_id,
+              created_by: user?.id,
+              notes: 'Instalación de equipo inicial'
+            } as any);
 
-        if (inventoryError) {
-          console.error('Inventory update error:', inventoryError);
-          throw new Error(`Error al actualizar stock: ${inventoryError.message}`);
+          if (inventoryError) {
+            console.error('Inventory transaction error:', inventoryError);
+            throw new Error(`Error al actualizar stock de almacén: ${inventoryError.message}`);
+          }
         }
 
         const { error: updateOrderError } = await supabase
@@ -533,6 +598,31 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
                       ))}
                     </select>
                   </div>
+
+                  {selectedEquipment && (
+                    <div className="mt-4 pt-4 border-t border-amber-200">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Almacén Origen <span className="text-red-600">*</span>
+                      </label>
+                      <select
+                        value={formData.equipment_location_id}
+                        onChange={(e) => setFormData({ ...formData, equipment_location_id: e.target.value })}
+                        className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white font-medium"
+                        required={formData.service_type === 'installation' && !!formData.equipment_to_install}
+                      >
+                        <option value="" disabled hidden>Seleccione un almacén...</option>
+                        {locations.map((loc) => {
+                          const qty = selectedEquipment ? (locationStocks[selectedEquipment.id]?.[loc.id] || 0) : 0;
+                          const hasStock = qty > 0;
+                          return (
+                            <option key={loc.id} value={loc.id} disabled={selectedEquipment && !hasStock}>
+                              {loc.name} {selectedEquipment ? `(Disp: ${qty})` : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
 
                   {selectedEquipment && (
                     <>

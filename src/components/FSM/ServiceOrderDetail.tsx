@@ -94,7 +94,8 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
         .from('service_order_materials')
         .select(`
           *,
-          price_list:inventory_item_id (name, code, category)
+          price_list:inventory_item_id (name, code, category),
+          location_name:inventory_locations!location_id (name)
         `)
         .eq('service_order_id', orderId),
       supabase
@@ -138,6 +139,79 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
       case 'paid': return 'bg-emerald-100 text-emerald-800';
       case 'invoiced': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleRemoveMaterial = async (material: any) => {
+    if (confirm('¿Eliminar este material?')) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+
+        // 1. Eliminar de service_order_materials
+        const { error: deleteError } = await supabase.from('service_order_materials').delete().eq('id', material.id);
+        if (deleteError) {
+          console.error('Error deleting material:', deleteError);
+          throw new Error('No se pudo eliminar el material de la orden');
+        }
+
+        // 2. Transacción de inventario tipo 'entrada' si es que tenía location_id asignada
+        if (material.location_id) {
+          const { error: txError } = await supabase.from('inventory_transactions').insert({
+            product_id: material.inventory_item_id,
+            transaction_type: 'return',
+            quantity: material.quantity_used,
+            unit_cost: material.unit_cost || 0,
+            total_cost: material.total_cost || 0,
+            reference_type: 'servicio',
+            reference_id: order?.id || material.service_order_id,
+            service_order_id: order?.id || material.service_order_id,
+            to_location_id: material.location_id,
+            created_by: user?.id,
+            notes: 'Devolución de material de orden de servicio eliminada'
+          } as any);
+
+          if (txError) {
+            console.error('Error creating inventory transaction:', txError);
+            throw new Error('No se pudo crear el movimiento de retorno de inventario');
+          }
+        } else {
+          // Fallback legacy behavior if location_id is missing
+          const { data: item } = await supabase.from('price_list').select('stock_quantity').eq('id', material.inventory_item_id).single();
+          if (item) { 
+            await supabase.from('price_list').update({ stock_quantity: (item as any).stock_quantity + material.quantity_used } as any).eq('id', material.inventory_item_id); 
+          }
+        }
+
+        // 3. Restar el costo de los materiales en la orden de servicio
+        if (order) {
+          const costToSubtract = material.total_cost || (material.quantity_used * (material.unit_cost || 0));
+          if (costToSubtract > 0) {
+            const newMaterialsCost = Math.max(0, (order.materials_cost || 0) - costToSubtract);
+            const newTotalCost = Math.max(0, (order.total_cost || 0) - costToSubtract);
+            
+            const { error: updateError } = await supabase.from('service_orders').update({
+              materials_cost: newMaterialsCost,
+              total_cost: newTotalCost
+            }).eq('id', order.id);
+            
+            if (updateError) console.error('Error actualizando costos:', updateError);
+          }
+        }
+
+        // 4. Log a history event
+        await supabase.from('service_order_status_history').insert([{
+          service_order_id: order?.id || material.service_order_id,
+          previous_status: 'activity',
+          new_status: 'material_removed',
+          reason: `Se eliminó material: ${material.price_list?.name || 'Artículo'} (Cant: ${material.quantity_used})`
+        }]);
+
+        // 5. Recargar datos
+        loadOrderData();
+      } catch (err: any) {
+        console.error('Error removing material:', err);
+        alert(err.message || 'Hubo un error al eliminar el material');
+      }
     }
   };
 
@@ -620,6 +694,7 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                                       <p className="font-semibold text-gray-900">{material.price_list?.name || 'Dispositivo'}</p>
                                       <p className="text-sm text-gray-600">{material.price_list?.code || ''}</p>
                                       {material.serial_number && <p className="text-sm text-blue-600">Serie: {material.serial_number}</p>}
+                                      {material.location_name && <p className="text-xs text-gray-500 mt-1">Almacén: {material.location_name.name}</p>}
                                     </div>
                                     <div className="text-right mr-4">
                                       <p className="text-sm text-gray-600">Cantidad: {material.quantity_used}</p>
@@ -628,14 +703,7 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                                     </div>
                                     {order.status !== 'completed' && order.status !== 'cancelled' && (
                                       <button
-                                        onClick={async () => {
-                                          if (confirm('¿Eliminar este material?')) {
-                                            await supabase.from('service_order_materials').delete().eq('id', material.id);
-                                            const { data: item } = await supabase.from('price_list').select('stock_quantity').eq('id', material.inventory_item_id).single();
-                                            if (item) { await supabase.from('price_list').update({ stock_quantity: (item as any).stock_quantity + material.quantity_used }).eq('id', material.inventory_item_id); }
-                                            loadOrderData();
-                                          }
-                                        }}
+                                        onClick={() => handleRemoveMaterial(material)}
                                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                       >
                                         <Trash2 className="w-5 h-5" />
@@ -668,6 +736,7 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                                     <div className="flex-1">
                                       <p className="font-semibold text-gray-900">{material.price_list?.name || 'Material'}</p>
                                       <p className="text-sm text-gray-600">{material.price_list?.code || ''}</p>
+                                      {material.location_name && <p className="text-xs text-gray-500 mt-1">Almacén: {material.location_name.name}</p>}
                                     </div>
                                     <div className="text-right mr-4">
                                       <p className="text-sm text-gray-600">Cantidad: {material.quantity_used}</p>
@@ -676,14 +745,7 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                                     </div>
                                     {order.status !== 'completed' && order.status !== 'cancelled' && (
                                       <button
-                                        onClick={async () => {
-                                          if (confirm('¿Eliminar este material?')) {
-                                            await supabase.from('service_order_materials').delete().eq('id', material.id);
-                                            const { data: item } = await supabase.from('price_list').select('stock_quantity').eq('id', material.inventory_item_id).single();
-                                            if (item) { await supabase.from('price_list').update({ stock_quantity: (item as any).stock_quantity + material.quantity_used }).eq('id', material.inventory_item_id); }
-                                            loadOrderData();
-                                          }
-                                        }}
+                                        onClick={() => handleRemoveMaterial(material)}
                                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                       >
                                         <Trash2 className="w-5 h-5" />
@@ -724,14 +786,7 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                                     </div>
                                     {order.status !== 'completed' && order.status !== 'cancelled' && (
                                       <button
-                                        onClick={async () => {
-                                          if (confirm('¿Eliminar este material?')) {
-                                            await supabase.from('service_order_materials').delete().eq('id', material.id);
-                                            const { data: item } = await supabase.from('price_list').select('stock_quantity').eq('id', material.inventory_item_id).single();
-                                            if (item) { await supabase.from('price_list').update({ stock_quantity: (item as any).stock_quantity + material.quantity_used }).eq('id', material.inventory_item_id); }
-                                            loadOrderData();
-                                          }
-                                        }}
+                                        onClick={() => handleRemoveMaterial(material)}
                                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                       >
                                         <Trash2 className="w-5 h-5" />
