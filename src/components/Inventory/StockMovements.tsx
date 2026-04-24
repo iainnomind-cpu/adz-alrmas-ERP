@@ -81,9 +81,9 @@ export function StockMovements() {
       .limit(100);
 
     if (filter === 'purchase') {
-      query = query.in('transaction_type', ['purchase', 'adjustment_in', 'return']);
+      query = query.in('transaction_type', ['purchase', 'adjustment_in', 'return', 'entrada']);
     } else if (filter === 'usage') {
-      query = query.in('transaction_type', ['usage', 'adjustment_out', 'damage', 'loss']);
+      query = query.in('transaction_type', ['usage', 'adjustment_out', 'damage', 'loss', 'salida']);
     } else if (filter === 'transfer') {
       query = query.eq('transaction_type', 'transfer');
     }
@@ -100,7 +100,7 @@ export function StockMovements() {
 
   const getTransactionIcon = (type: string) => {
     if (type === 'transfer') return <ArrowRightLeft className="w-5 h-5 text-blue-600" />;
-    if (['purchase', 'adjustment_in', 'return'].includes(type)) {
+    if (['purchase', 'adjustment_in', 'return', 'entrada'].includes(type)) {
       return <TrendingUp className="w-5 h-5 text-green-600" />;
     }
     return <TrendingDown className="w-5 h-5 text-red-600" />;
@@ -108,7 +108,7 @@ export function StockMovements() {
 
   const getTransactionColor = (type: string) => {
     if (type === 'transfer') return 'bg-blue-50 border-blue-200';
-    if (['purchase', 'adjustment_in', 'return'].includes(type)) {
+    if (['purchase', 'adjustment_in', 'return', 'entrada'].includes(type)) {
       return 'bg-green-50 border-green-200';
     }
     return 'bg-red-50 border-red-200';
@@ -123,7 +123,9 @@ export function StockMovements() {
       adjustment_out: 'Ajuste Salida',
       return: 'Devolución',
       damage: 'Daño',
-      loss: 'Pérdida'
+      loss: 'Pérdida',
+      entrada: 'Entrada (Devolución)',
+      salida: 'Salida (Servicio)'
     };
     return labels[type] || type;
   };

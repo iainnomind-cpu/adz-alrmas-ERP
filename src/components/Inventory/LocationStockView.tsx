@@ -14,6 +14,8 @@ interface LocationStockRow {
     product_name: string;
     product_code: string;
     brand: string | null;
+    cost: number;
+    price: number;
     stocks: Record<string, number>; // location_id -> quantity
     total: number;
 }
@@ -25,6 +27,9 @@ export function LocationStockView() {
     const [search, setSearch] = useState('');
     const [showTransferForm, setShowTransferForm] = useState(false);
     const [filterLocation, setFilterLocation] = useState<string>('all');
+    const [viewMode, setViewMode] = useState<'units' | 'cost' | 'sale'>('units');
+
+    const formatCurrency = (val: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
 
     useEffect(() => {
         loadData();
@@ -44,7 +49,7 @@ export function LocationStockView() {
 
             // Load all products with stock
             const { data: products } = await (supabase.from('price_list') as any)
-                .select('id, code, name, brand, stock_quantity')
+                .select('id, code, name, brand, stock_quantity, cost, base_price_mxn')
                 .eq('is_active', true)
                 .order('name');
 
@@ -67,6 +72,8 @@ export function LocationStockView() {
                     product_name: p.name,
                     product_code: p.code || '',
                     brand: p.brand,
+                    cost: parseFloat(p.cost) || 0,
+                    price: parseFloat(p.base_price_mxn) || 0,
                     stocks,
                     total,
                 };
@@ -89,6 +96,16 @@ export function LocationStockView() {
         return matchesSearch && (row.stocks[filterLocation] || 0) > 0;
     });
 
+    const totalInventoryUnits = filteredRows.reduce((sum, row) => sum + row.total, 0);
+    const totalInventoryCost = filteredRows.reduce((sum, row) => sum + (row.total * row.cost), 0);
+    const totalInventorySale = filteredRows.reduce((sum, row) => sum + (row.total * row.price), 0);
+
+    const getGlobalTotalLabel = () => {
+        if (viewMode === 'cost') return formatCurrency(totalInventoryCost) + ' (Costo)';
+        if (viewMode === 'sale') return formatCurrency(totalInventorySale) + ' (Venta)';
+        return totalInventoryUnits + ' unidades';
+    };
+
     const getLocationIcon = (type: string) => {
         switch (type) {
             case 'warehouse': return '🏭';
@@ -100,6 +117,10 @@ export function LocationStockView() {
     };
 
     const getQtyColor = (qty: number) => {
+        if (viewMode !== 'units') {
+             if (qty === 0) return 'text-gray-300';
+             return 'text-emerald-700 font-semibold';
+        }
         if (qty === 0) return 'text-gray-300';
         if (qty <= 2) return 'text-red-600 font-bold';
         if (qty <= 5) return 'text-amber-600 font-semibold';
@@ -123,17 +144,41 @@ export function LocationStockView() {
                         <MapPin className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-semibold text-gray-900">Stock por Ubicación</h3>
-                        <p className="text-sm text-gray-500">{locations.length} ubicaciones • {rows.length} productos</p>
+                        <h3 className="text-lg font-semibold text-gray-900">Valorización de Stock por Ubicación</h3>
+                        <p className="text-sm text-gray-500 font-medium">
+                            {filteredRows.length} productos | <span className="text-emerald-600 font-bold">Total: {getGlobalTotalLabel()}</span>
+                        </p>
                     </div>
                 </div>
-                <button
-                    onClick={() => setShowTransferForm(true)}
-                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
-                >
-                    <ArrowRightLeft className="w-4 h-4" />
-                    Registrar Movimiento
-                </button>
+                <div className="flex gap-2">
+                    <div className="bg-gray-100 p-1 flex rounded-lg">
+                        <button
+                            onClick={() => setViewMode('units')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'units' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Físico (Und)
+                        </button>
+                        <button
+                            onClick={() => setViewMode('cost')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'cost' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            $$ Costo
+                        </button>
+                        <button
+                            onClick={() => setViewMode('sale')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'sale' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            $$ Venta
+                        </button>
+                    </div>
+                    <button
+                        onClick={() => setShowTransferForm(true)}
+                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+                    >
+                        <ArrowRightLeft className="w-4 h-4" />
+                        Registrar Movimiento
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -165,8 +210,15 @@ export function LocationStockView() {
             {/* Location summary cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {locations.map(loc => {
-                    const totalInLoc = rows.reduce((sum, r) => sum + (r.stocks[loc.id] || 0), 0);
+                    const totalUnitsInLoc = rows.reduce((sum, r) => sum + (r.stocks[loc.id] || 0), 0);
+                    const totalCostInLoc = rows.reduce((sum, r) => sum + ((r.stocks[loc.id] || 0) * r.cost), 0);
+                    const totalSaleInLoc = rows.reduce((sum, r) => sum + ((r.stocks[loc.id] || 0) * r.price), 0);
                     const productsInLoc = rows.filter(r => (r.stocks[loc.id] || 0) > 0).length;
+                    
+                    let displayStat = totalUnitsInLoc.toString();
+                    if (viewMode === 'cost') displayStat = formatCurrency(totalCostInLoc);
+                    if (viewMode === 'sale') displayStat = formatCurrency(totalSaleInLoc);
+
                     return (
                         <button
                             key={loc.id}
@@ -178,7 +230,9 @@ export function LocationStockView() {
                         >
                             <div className="text-lg mb-1">{getLocationIcon(loc.type)}</div>
                             <p className="text-xs font-medium text-gray-600 truncate">{loc.name}</p>
-                            <p className="text-xl font-bold text-gray-900">{totalInLoc}</p>
+                            <p className={`text-lg font-bold ${viewMode === 'units' ? 'text-gray-900' : 'text-emerald-700'}`}>
+                                {displayStat}
+                            </p>
                             <p className="text-xs text-gray-500">{productsInLoc} productos</p>
                         </button>
                     );
@@ -220,17 +274,21 @@ export function LocationStockView() {
                                     </td>
                                     {locations.map(loc => {
                                         const qty = row.stocks[loc.id] || 0;
+                                        let displayVal = qty.toString();
+                                        if (qty > 0 && viewMode === 'cost') displayVal = formatCurrency(qty * row.cost);
+                                        if (qty > 0 && viewMode === 'sale') displayVal = formatCurrency(qty * row.price);
+                                        
                                         return (
                                             <td key={loc.id} className="px-3 py-3 text-center">
                                                 <span className={`text-sm ${getQtyColor(qty)}`}>
-                                                    {qty}
+                                                    {qty === 0 ? (viewMode === 'units' ? '0' : '-') : displayVal}
                                                 </span>
                                             </td>
                                         );
                                     })}
                                     <td className="px-3 py-3 text-center bg-gray-50">
                                         <span className={`text-sm font-bold ${row.total === 0 ? 'text-red-500' : 'text-gray-900'}`}>
-                                            {row.total}
+                                            {viewMode === 'units' ? row.total : (viewMode === 'cost' ? formatCurrency(row.total * row.cost) : formatCurrency(row.total * row.price))}
                                         </span>
                                     </td>
                                 </tr>

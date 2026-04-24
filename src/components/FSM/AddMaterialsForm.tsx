@@ -26,10 +26,16 @@ interface InventoryItem {
 
 interface MaterialToAdd {
   inventory_item_id: string;
+  location_id: string;
   quantity: number;
   unit_cost: number;
   serial_number?: string;
   installation_notes?: string;
+}
+
+interface InventoryLocation {
+  id: string;
+  name: string;
 }
 
 const EQUIPMENT_CATEGORIES = ['alarm', 'panel', 'sensor', 'keyboard', 'communicator', 'camera', 'dispositivo', 'device'];
@@ -63,7 +69,9 @@ const getEquipmentCategoryLabel = (category: string): string => {
 
 export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsFormProps) {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [locations, setLocations] = useState<InventoryLocation[]>([]);
   const [materialsToAdd, setMaterialsToAdd] = useState<MaterialToAdd[]>([]);
+  const [locationStocks, setLocationStocks] = useState<Record<string, Record<string, number>>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -72,8 +80,41 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
 
   useEffect(() => {
     loadInventoryItems();
+    loadLocations();
+    loadLocationStocks();
     loadCustomerTier();
   }, []);
+
+  const loadLocationStocks = async () => {
+    try {
+      const { data } = await supabase.from('inventory_location_stock').select('product_id, location_id, quantity');
+      const stocks: Record<string, Record<string, number>> = {};
+      if (data) {
+        data.forEach((ls: any) => {
+          if (!stocks[ls.product_id]) stocks[ls.product_id] = {};
+          stocks[ls.product_id][ls.location_id] = ls.quantity;
+        });
+      }
+      setLocationStocks(stocks);
+    } catch (e) {
+      console.error('Error loading location stocks:', e);
+    }
+  };
+
+  const loadLocations = async () => {
+    try {
+      const { data, error } = await (supabase.from('inventory_locations') as any)
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (!error && data) {
+        setLocations(data);
+      }
+    } catch (e) {
+      console.error('Error loading locations:', e);
+    }
+  };
 
   const loadCustomerTier = async () => {
     try {
@@ -118,7 +159,7 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
   const addMaterialRow = () => {
     setMaterialsToAdd([
       ...materialsToAdd,
-      { inventory_item_id: '', quantity: 1, unit_cost: 0, serial_number: '', installation_notes: '' }
+      { inventory_item_id: '', location_id: '', quantity: 1, unit_cost: 0, serial_number: '', installation_notes: '' }
     ]);
   };
 
@@ -167,12 +208,15 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
       return;
     }
 
-    const invalidMaterials = materialsToAdd.filter(
-      m => !m.inventory_item_id || m.quantity <= 0
-    );
+    const invalidMaterials = materialsToAdd.filter(m => {
+      if (!m.inventory_item_id || m.quantity <= 0 || !m.location_id) return true;
+      const availableStock = locationStocks[m.inventory_item_id]?.[m.location_id] || 0;
+      if (m.quantity > availableStock) return true;
+      return false;
+    });
 
     if (invalidMaterials.length > 0) {
-      setError('Todos los materiales deben tener producto y cantidad válida');
+      setError('Todos los artículos deben tener producto, almacén con stock suficiente y cantidad válida');
       return;
     }
 
@@ -180,6 +224,8 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
     setError('');
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+
       const materialsData = materialsToAdd.map(m => {
         const item = inventoryItems.find(i => i.id === m.inventory_item_id);
         const isEquip = item ? isEquipment(item.category) : false;
@@ -187,6 +233,7 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
         return {
           service_order_id: serviceOrderId,
           inventory_item_id: m.inventory_item_id,
+          location_id: m.location_id,
           quantity_used: m.quantity,
           unit_cost: m.unit_cost,
           total_cost: m.quantity * m.unit_cost,
@@ -195,21 +242,32 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
         };
       });
 
-      const { error: insertError } = await supabase
+      const { data: insertedMaterials, error: insertError } = await supabase
         .from('service_order_materials')
-        .insert(materialsData as any);
+        .insert(materialsData as any)
+        .select('id, inventory_item_id, location_id, quantity_used');
 
       if (insertError) throw insertError;
 
-      for (const material of materialsToAdd) {
-        const item = inventoryItems.find(i => i.id === material.inventory_item_id);
-        if (item) {
-          await supabase
-            .from('price_list')
-            .update({
-              stock_quantity: item.stock_quantity - material.quantity
-            })
-            .eq('id', material.inventory_item_id);
+      // Realizar transacciones de inventario
+      if (insertedMaterials && insertedMaterials.length > 0) {
+        for (const mat of insertedMaterials) {
+          const item = inventoryItems.find(i => i.id === mat.inventory_item_id);
+          if (item) {
+            await supabase.from('inventory_transactions').insert({
+              product_id: mat.inventory_item_id,
+              transaction_type: 'usage',
+              quantity: mat.quantity_used,
+              unit_cost: 0,
+              total_cost: 0,
+              reference_type: 'servicio',
+              reference_id: serviceOrderId,
+              service_order_id: serviceOrderId,
+              from_location_id: mat.location_id,
+              created_by: user?.id,
+              notes: 'Uso en orden de servicio'
+            } as any);
+          }
         }
       }
 
@@ -238,7 +296,7 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
         service_order_id: serviceOrderId,
         previous_status: 'activity',
         new_status: 'material_added',
-        reason: `Se agregaron ${materialsToAdd.length} material(es)`
+        reason: `Se agregaron ${materialsToAdd.length} artículo(s)`
       }]);
 
       setMaterialsToAdd([]);
@@ -365,18 +423,40 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
                   )}
                 </div>
 
+                <div className="md:col-span-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Almacén
+                  </label>
+                  <select
+                    value={material.location_id}
+                    onChange={(e) => updateMaterial(index, 'location_id', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="" disabled hidden>Seleccione un almacén...</option>
+                    {locations.map((loc) => {
+                      const qty = selectedItem ? (locationStocks[selectedItem.id]?.[loc.id] || 0) : 0;
+                      const hasStock = qty > 0;
+                      return (
+                        <option key={loc.id} value={loc.id} disabled={selectedItem && !hasStock}>
+                          {loc.name} {selectedItem ? `(Disp: ${qty})` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Cantidad
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max={selectedItem?.stock_quantity || 999}
-                    value={material.quantity}
-                    onChange={(e) => updateMaterial(index, 'quantity', parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
+                    <input
+                      type="number"
+                      min="1"
+                      max={selectedItem && material.location_id ? (locationStocks[selectedItem.id]?.[material.location_id] || 0) : (selectedItem?.stock_quantity || 999)}
+                      value={material.quantity}
+                      onChange={(e) => updateMaterial(index, 'quantity', parseInt(e.target.value) || 1)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
                 </div>
 
                 <div className="flex items-end gap-2">

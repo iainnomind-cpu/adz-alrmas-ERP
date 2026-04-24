@@ -31,6 +31,7 @@ export function MaterialRequestForm({ onClose, onSuccess }: MaterialRequestFormP
     const { user } = useAuth();
     const [locations, setLocations] = useState<Location[]>([]);
     const [products, setProducts] = useState<ProductOption[]>([]);
+    const [locationStocks, setLocationStocks] = useState<Record<string, Record<string, number>>>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -49,12 +50,22 @@ export function MaterialRequestForm({ onClose, onSuccess }: MaterialRequestFormP
     }, []);
 
     const loadData = async () => {
-        const [locsRes, prodsRes] = await Promise.all([
+        const [locsRes, prodsRes, stockRes] = await Promise.all([
             (supabase.from('inventory_locations') as any).select('id, name, type').eq('is_active', true).order('name'),
             (supabase.from('price_list') as any).select('id, code, name, brand').eq('is_active', true).order('name'),
+            (supabase.from('inventory_location_stock') as any).select('product_id, location_id, quantity')
         ]);
         setLocations(locsRes.data || []);
         setProducts(prodsRes.data || []);
+
+        const stocks: Record<string, Record<string, number>> = {};
+        if (stockRes.data) {
+            stockRes.data.forEach((ls: any) => {
+                if (!stocks[ls.product_id]) stocks[ls.product_id] = {};
+                stocks[ls.product_id][ls.location_id] = ls.quantity;
+            });
+        }
+        setLocationStocks(stocks);
     };
 
     const addItem = () => {
@@ -67,13 +78,25 @@ export function MaterialRequestForm({ onClose, onSuccess }: MaterialRequestFormP
     };
 
     const updateItem = (idx: number, field: keyof RequestItem, value: any) => {
-        setItems(items.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+        setItems(prevItems => prevItems.map((item, i) => i === idx ? { ...item, [field]: value } : item));
     };
 
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        (p.code && p.code.toLowerCase().includes(searchText.toLowerCase()))
-    );
+    const handleFromLocationChange = (newLocationId: string) => {
+        setFromLocationId(newLocationId);
+        // Clear all selected items since their availability depends on the source location
+        setItems([{ product_id: '', product_label: '', quantity: 1 }]);
+        setError('');
+    };
+
+    const filteredProducts = products.filter(p => {
+        if (!fromLocationId) return false;
+        
+        const stock = locationStocks[p.id]?.[fromLocationId] || 0;
+        if (stock <= 0) return false;
+
+        return p.name.toLowerCase().includes(searchText.toLowerCase()) ||
+               (p.code && p.code.toLowerCase().includes(searchText.toLowerCase()));
+    });
 
     const getLocationIcon = (type: string) => {
         switch (type) {
@@ -89,11 +112,6 @@ export function MaterialRequestForm({ onClose, onSuccess }: MaterialRequestFormP
         e.preventDefault();
         setError('');
 
-        const validItems = items.filter(i => i.product_id && i.quantity > 0);
-        if (validItems.length === 0) {
-            setError('Agrega al menos un producto a la solicitud');
-            return;
-        }
         if (!fromLocationId) {
             setError('Selecciona de dónde se tomará el material');
             return;
@@ -101,6 +119,22 @@ export function MaterialRequestForm({ onClose, onSuccess }: MaterialRequestFormP
         if (!toLocationId) {
             setError('Selecciona a dónde irá el material');
             return;
+        }
+
+        const validItems = items.filter(i => i.product_id && i.quantity > 0);
+        if (validItems.length === 0) {
+            setError('Agrega al menos un producto a la solicitud');
+            return;
+        }
+
+        // Validate quantities against available stock
+        for (const item of validItems) {
+            const availableStock = locationStocks[item.product_id]?.[fromLocationId] || 0;
+            if (item.quantity > availableStock) {
+                const product = products.find(p => p.id === item.product_id);
+                setError(`La cantidad solicitada de "${product?.name || 'Producto'}" supera el stock disponible (${availableStock}) en el almacén de origen.`);
+                return;
+            }
         }
 
         setLoading(true);
@@ -175,7 +209,7 @@ export function MaterialRequestForm({ onClose, onSuccess }: MaterialRequestFormP
                                 </label>
                                 <select
                                     value={fromLocationId}
-                                    onChange={(e) => setFromLocationId(e.target.value)}
+                                    onChange={(e) => handleFromLocationChange(e.target.value)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                                 >
                                     <option value="">Seleccionar origen...</option>
@@ -231,9 +265,16 @@ export function MaterialRequestForm({ onClose, onSuccess }: MaterialRequestFormP
                                                         updateItem(idx, 'product_id', '');
                                                         updateItem(idx, 'product_label', '');
                                                     }}
-                                                    onFocus={() => setActiveSearch(idx)}
-                                                    placeholder="Buscar producto..."
-                                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                                                    onFocus={() => {
+                                                        if (!fromLocationId) {
+                                                            setError('Debes seleccionar un almacén de origen primero para cargar los productos.');
+                                                            return;
+                                                        }
+                                                        setActiveSearch(idx);
+                                                    }}
+                                                    disabled={!fromLocationId}
+                                                    placeholder={fromLocationId ? "Buscar producto..." : "Selecciona origen primero"}
+                                                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm ${!fromLocationId ? 'bg-gray-100 cursor-not-allowed border-gray-200' : 'border-gray-300'}`}
                                                 />
                                             </div>
                                             {activeSearch === idx && searchText && !item.product_id && (
@@ -248,10 +289,13 @@ export function MaterialRequestForm({ onClose, onSuccess }: MaterialRequestFormP
                                                                 setSearchText('');
                                                                 setActiveSearch(null);
                                                             }}
-                                                            className="w-full text-left px-3 py-2 hover:bg-amber-50 text-sm"
+                                                            className="w-full text-left px-3 py-2 hover:bg-amber-50 text-sm flex items-center"
                                                         >
                                                             <span className="font-medium">{p.name}</span>
                                                             <span className="text-gray-500 ml-2">{p.code}</span>
+                                                            <span className="ml-auto text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                                                                Disp: {locationStocks[p.id]?.[fromLocationId] || 0}
+                                                            </span>
                                                         </button>
                                                     ))}
                                                 </div>

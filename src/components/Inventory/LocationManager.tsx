@@ -14,10 +14,10 @@ interface Location {
 }
 
 const LOCATION_TYPES = {
-    warehouse: { label: 'Almacén', icon: Store, color: 'text-blue-600 bg-blue-100' },
+    warehouse: { label: 'Almacén Central', icon: Store, color: 'text-blue-600 bg-blue-100' },
     vehicle: { label: 'Vehículo', icon: Truck, color: 'text-green-600 bg-green-100' },
     partner: { label: 'Socio / Partner', icon: Users, color: 'text-purple-600 bg-purple-100' },
-    personal: { label: 'Personal', icon: User, color: 'text-orange-600 bg-orange-100' }
+    personal: { label: 'Técnico', icon: User, color: 'text-orange-600 bg-orange-100' }
 };
 
 export function LocationManager() {
