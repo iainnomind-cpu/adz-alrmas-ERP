@@ -141,16 +141,31 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         }
     }, [formData.currency, calculatedCostUSD, formData.exchange_rate, formData.cost_price_mxn]);
 
-    // Precio de venta al público
-    const sellingPrice = useMemo(() => {
+    // Calcular precio real (costo con IVA)
+    const calculatedRealCost = useMemo(() => {
+        let realCost = calculatedBaseMXN;
+        if (formData.has_tax) {
+            const tr = parseFloat(formData.tax_rate) || 0;
+            realCost = realCost * (1 + (tr / 100));
+        }
+        return realCost;
+    }, [calculatedBaseMXN, formData.has_tax, formData.tax_rate]);
+
+    const [isAutoPrice, setIsAutoPrice] = useState(!item || item.base_price_mxn === parseFloat((calculatedRealCost / 0.60).toFixed(2)));
+
+    // Precio actual en base al override o cálculo automático
+    const displaySellingPrice = useMemo(() => {
+        if (isAutoPrice) {
+            return calculatedRealCost / 0.60; 
+        }
         return parseFloat(formData.selling_price) || 0;
-    }, [formData.selling_price]);
+    }, [isAutoPrice, calculatedRealCost, formData.selling_price]);
 
     // Margen de ganancia
     const profitMargin = useMemo(() => {
-        if (calculatedBaseMXN <= 0 || sellingPrice <= 0) return 0;
-        return ((sellingPrice - calculatedBaseMXN) / calculatedBaseMXN) * 100;
-    }, [calculatedBaseMXN, sellingPrice]);
+        if (calculatedRealCost <= 0 || displaySellingPrice <= 0) return 0;
+        return ((displaySellingPrice - calculatedRealCost) / calculatedRealCost) * 100;
+    }, [calculatedRealCost, displaySellingPrice]);
 
     // Actualizar cost_price_usd cuando cambia el cálculo
     useEffect(() => {
@@ -161,6 +176,19 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
             }));
         }
     }, [calculatedCostUSD, formData.currency]);
+
+    // Actualizar precio de venta sugerido cuando está en auto
+    useEffect(() => {
+        if (isAutoPrice) {
+             const suggestedPrice = calculatedRealCost / 0.60;
+             if (parseFloat(formData.selling_price) !== parseFloat(suggestedPrice.toFixed(2))) {
+                 setFormData(prev => ({
+                     ...prev,
+                     selling_price: suggestedPrice.toFixed(2)
+                 }));
+             }
+        }
+    }, [isAutoPrice, calculatedRealCost, formData.selling_price]);
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('es-MX', {
@@ -240,9 +268,11 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 }
             }
 
-            const finalBasePrice = sellingPrice > 0 ? sellingPrice : calculatedBaseMXN;
+            const finalBasePrice = displaySellingPrice > 0 ? displaySellingPrice : calculatedBaseMXN;
             const finalTaxRate = formData.has_tax ? parseFloat(formData.tax_rate) : 0;
             const finalPriceWithTax = finalBasePrice * (1 + (finalTaxRate / 100));
+
+            const realCost = calculatedRealCost;
 
             const dataToSave = {
                 code: formData.code.toUpperCase(),
@@ -260,6 +290,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 cost_price_mxn: formData.currency === 'MXN' ? parseFloat(formData.cost_price_mxn) : null,
                 exchange_rate: parseFloat(formData.exchange_rate) || 21,
                 base_price_mxn: finalBasePrice,
+                cost: parseFloat(realCost.toFixed(2)),
                 discount_tier_1: formData.discount_tier_1,
                 discount_tier_2: formData.discount_tier_2,
                 discount_tier_3: formData.discount_tier_3,
@@ -704,17 +735,28 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
 
                         {/* SECCIÓN: Precio de Venta al Público */}
                         <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-emerald-300">
-                            <div className="flex items-center gap-2 mb-4">
-                                <ShoppingCart className="w-5 h-5 text-emerald-600" />
-                                <h4 className="font-semibold text-gray-900">Precio de Venta al Público (MXN)</h4>
+                            <div className="flex items-center gap-2 mb-4 justify-between">
+                                <div className="flex items-center gap-2">
+                                    <ShoppingCart className="w-5 h-5 text-emerald-600" />
+                                    <h4 className="font-semibold text-gray-900">Precio de Venta al Público (MXN)</h4>
+                                </div>
+                                <label className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-emerald-200 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={isAutoPrice}
+                                        onChange={(e) => setIsAutoPrice(e.target.checked)}
+                                        className="w-4 h-4 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
+                                    />
+                                    <strong>Automático según costo</strong>
+                                </label>
                             </div>
                             <p className="text-xs text-gray-500 mb-3">
-                                Este es el precio que se asignará a los equipos al momento de instalarlos.
+                                 {isAutoPrice ? 'El precio se fija dividiendo el costo con IVA entre 0.60 para asegurar el margen estándar.' : 'Modo de sobreescritura manual activado.'}
                             </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Precio de Venta <span className="text-red-600">*</span>
+                                        Precio de Venta {isAutoPrice ? '(Calculado)' : '<span className="text-red-600">*</span>'}
                                     </label>
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
@@ -723,14 +765,15 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                             step="0.01"
                                             min="0"
                                             value={formData.selling_price}
+                                            disabled={isAutoPrice}
                                             onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
-                                            className="w-full pl-8 pr-4 py-3 border-2 border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-lg font-semibold"
+                                            className={`w-full pl-8 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-lg font-semibold ${isAutoPrice ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : 'border-emerald-300'}`}
                                             placeholder="0.00"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    {calculatedBaseMXN > 0 && sellingPrice > 0 && (
+                                    {calculatedRealCost > 0 && displaySellingPrice > 0 && (
                                         <div className={`rounded-lg p-3 text-center ${profitMargin > 0
                                             ? 'bg-emerald-100 border border-emerald-300'
                                             : 'bg-red-100 border border-red-300'
@@ -741,7 +784,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                                 {profitMargin.toFixed(1)}%
                                             </p>
                                             <p className="text-xs text-gray-500">
-                                                Ganancia: {formatCurrency(sellingPrice - calculatedBaseMXN)}
+                                                Ganancia: {formatCurrency(displaySellingPrice - calculatedRealCost)}
                                             </p>
                                         </div>
                                     )}
@@ -750,7 +793,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                         </div>
 
                         {/* SECCIÓN 4: Niveles de Descuento */}
-                        {sellingPrice > 0 && (
+                        {displaySellingPrice > 0 && (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 border-b pb-2">
                                     <Percent className="w-5 h-5 text-blue-600" />
@@ -761,7 +804,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                     {[1, 2, 3, 4, 5].map((tier) => {
                                         const key = `discount_tier_${tier}` as keyof FormData;
                                         const value = formData[key] as number;
-                                        const price = sellingPrice * (1 - value / 100);
+                                        const price = displaySellingPrice * (1 - value / 100);
 
                                         return (
                                             <div key={tier} className="bg-gray-50 rounded-lg p-4 text-center">
@@ -782,15 +825,15 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                                 <div className="text-sm text-gray-600 mt-1">
                                                     {formatCurrency(price)}
                                                 </div>
-                                                {calculatedBaseMXN > 0 && (
+                                                {calculatedRealCost > 0 && (
                                                     <>
-                                                        <div className={`text-xs mt-1 ${price > calculatedBaseMXN ? 'text-emerald-600' : 'text-red-500'
+                                                        <div className={`text-xs mt-1 ${price > calculatedRealCost ? 'text-emerald-600' : 'text-red-500'
                                                             }`}>
-                                                            Margen: {((price - calculatedBaseMXN) / calculatedBaseMXN * 100).toFixed(1)}%
+                                                            Margen: {((price - calculatedRealCost) / calculatedRealCost * 100).toFixed(1)}%
                                                         </div>
-                                                        <div className={`text-xs ${price > calculatedBaseMXN ? 'text-emerald-500' : 'text-red-400'
+                                                        <div className={`text-xs ${price > calculatedRealCost ? 'text-emerald-500' : 'text-red-400'
                                                             }`}>
-                                                            Ganancia: {formatCurrency(price - calculatedBaseMXN)}
+                                                            Ganancia: {formatCurrency(price - calculatedRealCost)}
                                                         </div>
                                                     </>
                                                 )}
