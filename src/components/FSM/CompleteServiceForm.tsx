@@ -95,6 +95,7 @@ export function CompleteServiceForm({
   const [customerId, setCustomerId] = useState('');
   const [discountApplied, setDiscountApplied] = useState(false);
   const [currentTotalCost, setCurrentTotalCost] = useState(totalCost);
+  const [currentLaborCost, setCurrentLaborCost] = useState(0);
   const [cardDiscountAmount, setCardDiscountAmount] = useState<number>(0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -109,7 +110,7 @@ export function CompleteServiceForm({
     try {
       const { data: serviceOrder, error: orderError } = await supabase
         .from('service_orders')
-        .select('service_type, customer_id, total_cost, discount_applied_digital_card')
+        .select('service_type, customer_id, total_cost, labor_cost')
         .eq('id', orderId)
         .maybeSingle();
 
@@ -125,7 +126,10 @@ export function CompleteServiceForm({
         setServiceType(serviceOrder.service_type);
         setCustomerId(serviceOrder.customer_id);
         setCurrentTotalCost(serviceOrder.total_cost);
-        setDiscountApplied(serviceOrder.discount_applied_digital_card || false);
+        setCurrentLaborCost(serviceOrder.labor_cost || 0);
+        
+        // El bloqueo de multiples escaneos está manejado por la promoción a Nivel 2 en la BD.
+        setDiscountApplied(false);
 
         // Always load equipment materials for any service type
         await loadEquipmentMaterials(serviceOrder.customer_id);
@@ -321,6 +325,11 @@ export function CompleteServiceForm({
 
       const tier = (customer as any)?.pricing_tier || 1;
 
+      // REGLA DE DESCUENTO ÚNICO: 
+      // Defensivo: Si por error de concurrencia llega a entrar, no arrojará la UI aquí pero abortará el calculo.
+      if (tier >= 2) {
+         return 0; // The UI blocking is now handled correctly inside handleQRScanSuccess
+      }
       // 2. Get Materials
       const { data: materials } = await supabase
         .from('service_order_materials')
@@ -340,29 +349,25 @@ export function CompleteServiceForm({
 
       let totalNewMaterialsCost = 0;
 
-      // 3. Update Materials (Apply discount to everything)
+      // 3. Update Materials (Promote to Tier 2: 15% discount to everything)
       if (materials && materials.length > 0) {
         for (const m of materials) {
           const item = m.inventory_items;
           let newUnitCost = m.unit_cost || 0;
-          let baseForDiscount = m.unit_cost || 0;
 
-          // If it's equipment, recalculate tier price first
           if (item && isEquipmentCategory(item.category || '')) {
-            let discountPercent = 0;
-            switch (tier) {
-              case 1: discountPercent = item.discount_tier_1 || 0; break;
-              case 2: discountPercent = item.discount_tier_2 || 0; break;
-              case 3: discountPercent = item.discount_tier_3 || 0; break;
-              case 4: discountPercent = item.discount_tier_4 || 0; break;
-              case 5: discountPercent = item.discount_tier_5 || 0; break;
-            }
-            baseForDiscount = item.base_price_mxn * (1 - (discountPercent / 100));
+            const baseForDiscount = item.base_price_mxn || 0;
+            const discountPercent = item.discount_tier_2 || 15; // Nivel 2
+            
+            newUnitCost = parseFloat((baseForDiscount * (1 - (discountPercent / 100))).toFixed(2));
+          } else {
+            // Material genérico (sin tiers en BD). Aplicar estricto 15% en vez de 10%.
+            const baseForDiscount = m.unit_cost || 0;
+            newUnitCost = parseFloat((baseForDiscount * 0.85).toFixed(2));
           }
 
-          // Apply 10% Digital Card Discount to the baseForDiscount
-          newUnitCost = parseFloat((baseForDiscount * 0.90).toFixed(2));
-          totalSavedAmount += (baseForDiscount - newUnitCost) * m.quantity_used;
+          // Calcular ahorro contra el costo previo (que era Nivel 1)
+          totalSavedAmount += (m.unit_cost - newUnitCost) * m.quantity_used;
 
           // Update database record
           await supabase
@@ -377,7 +382,7 @@ export function CompleteServiceForm({
         }
       }
 
-      // 4. Update Order Total (Apply 10% to labor too)
+      // 4. Update Order Total (Apply 15% to labor as well following Tier 2 logic)
       const { data: order } = await supabase
         .from('service_orders')
         .select('labor_cost, materials_cost')
@@ -387,7 +392,7 @@ export function CompleteServiceForm({
       const origLabor = order?.labor_cost || 0;
       const origMaterials = order?.materials_cost || 0;
 
-      const newLaborCost = parseFloat((origLabor * 0.90).toFixed(2));
+      const newLaborCost = parseFloat((origLabor * 0.85).toFixed(2));
       totalSavedAmount += (origLabor - newLaborCost);
 
       const finalMaterialsCost = materials && materials.length > 0 ? totalNewMaterialsCost : origMaterials;
@@ -398,20 +403,25 @@ export function CompleteServiceForm({
         .update({
           labor_cost: newLaborCost,
           materials_cost: finalMaterialsCost,
-          total_cost: newTotal,
-          discount_applied_digital_card: true
+          total_cost: newTotal
         } as any)
         .eq('id', orderId);
 
+      // PROMOVER EL CLIENTE A NIVEL 2 DE FORMA PERMANENTE
+      await supabase
+        .from('customers')
+        .update({ pricing_tier: 2 })
+        .eq('id', customerId);
+
       setCurrentTotalCost(newTotal);
+      setCurrentLaborCost(newLaborCost);
       setDiscountApplied(true);
       await loadEquipmentMaterials();
       return parseFloat(totalSavedAmount.toFixed(2));
 
     } catch (e) {
       console.error('Error applying discount:', e);
-      setError('Error aplicando descuento');
-      return 0;
+      throw e; // Propagar error para que handleQRScanSuccess lo capture y muestre en UI
     } finally {
       setLoading(false);
     }
@@ -486,6 +496,22 @@ export function CompleteServiceForm({
 
   const handleQRScanSuccess = async (cardData: any) => {
     try {
+      // 1. REGLA DE DESCUENTO ÚNICO: VALIDACIÓN CORTAFUEGOS
+      // Impedimos que el QR proceda si el cliente ya tiene Nivel 2 o superior
+      const { data: cData } = await supabase
+        .from('customers')
+        .select('pricing_tier')
+        .eq('id', customerId)
+        .single();
+      
+      const currentTier = (cData as any)?.pricing_tier || 1;
+      
+      if (currentTier === 2) {
+        throw new Error("El cliente ya cuenta con el descuento de tarjeta activado.");
+      } else if (currentTier >= 3) {
+        throw new Error("El cliente ya disfruta de un nivel de descuento superior por convenio/mayorista.");
+      }
+
       const { data } = await supabase.auth.getUser();
 
       const card = await CardValidationService.validateScannedCard({
@@ -1063,13 +1089,15 @@ export function CompleteServiceForm({
                     return sum + ((m.unit_cost ?? 0) * (m.quantity_used || 0));
                   }, 0);
 
-                  const laborCost = currentTotalCost - netTotalMaterials;
+                  const laborCost = currentLaborCost;
                   const baseLaborCost = discountApplied ? (laborCost / 0.90) : laborCost;
                   
                   const precioNormal = baseTotalMaterials + baseLaborCost;
                   const tierTotalMaterials = discountApplied ? (netTotalMaterials / 0.90) : netTotalMaterials;
                   const customerDiscount = baseTotalMaterials - tierTotalMaterials;
                   const cardDiscount = (tierTotalMaterials - netTotalMaterials) + (baseLaborCost - laborCost);
+
+                  const calculatedTotalCost = netTotalMaterials + laborCost;
 
                   return (
                     <>
@@ -1100,18 +1128,18 @@ export function CompleteServiceForm({
                       {cardDiscount > 0.1 && (
                         <div className="flex items-center justify-between py-1 border-t border-blue-100 mt-1 pt-1">
                           <span className="text-gray-800 font-medium">Subtotal Neto:</span>
-                          <span className="font-bold text-gray-900">${currentTotalCost.toFixed(2)}</span>
+                          <span className="font-bold text-gray-900">${calculatedTotalCost.toFixed(2)}</span>
                         </div>
                       )}
 
                       <div className="flex items-center justify-between py-1 mt-1">
                         <span className="text-gray-600">IVA (16%):</span>
-                        <span className="font-semibold text-gray-900">${(currentTotalCost * 0.16).toFixed(2)}</span>
+                        <span className="font-semibold text-gray-900">${(calculatedTotalCost * 0.16).toFixed(2)}</span>
                       </div>
 
                       <div className="flex items-center justify-between pt-3 mt-2 border-t-2 border-blue-300">
                         <span className="text-lg font-bold text-gray-900">Total a Pagar / Cuenta Final:</span>
-                        <span className="text-2xl font-bold text-blue-600">${(currentTotalCost * 1.16).toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-blue-600">${(calculatedTotalCost * 1.16).toFixed(2)}</span>
                       </div>
                     </>
                   );
