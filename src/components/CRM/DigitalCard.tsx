@@ -33,27 +33,28 @@ export function DigitalCard({ card, usageCount, onEdit, onBlock, onActivate }: D
   // Use local asset for Canaco logo
   const CANACO_LOGO_URL = cancologo;
 
-  const handleDownload = async () => {
-    if (!cardRef.current) return;
+  const generateCardBase64 = async (): Promise<string> => {
+    const originalCard = cardRef.current;
+    if (!originalCard) throw new Error("Elemento no encontrado");
 
-    setIsDownloading(true);
+    // 2. VALIDAR DIMENSIONES
+    const rect = originalCard.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      throw new Error("Elemento sin dimensiones válidas");
+    }
+
+    // 1. GARANTIZAR VISIBILIDAD (fuera de pantalla)
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '800px';
+    container.style.height = '504px';
+    container.style.overflow = 'hidden';
+    document.body.appendChild(container);
+
     try {
-      const originalCard = cardRef.current;
-
-      // Setup off-screen container FIRST with fixed dimensions
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-10000px';
-      container.style.top = '0';
-      container.style.width = '800px';
-      container.style.height = '504px'; // 800 / 1.586
-      container.style.overflow = 'hidden';
-      document.body.appendChild(container);
-
-      // Clone the card
       const clone = originalCard.cloneNode(true) as HTMLElement;
-
-      // CRITICAL: Remove containerType which html2canvas doesn't support
       clone.style.containerType = 'normal';
       clone.style.width = '800px';
       clone.style.height = '504px';
@@ -61,147 +62,132 @@ export function DigitalCard({ card, usageCount, onEdit, onBlock, onActivate }: D
       clone.style.transform = 'none';
       clone.style.margin = '0';
       clone.style.borderRadius = '16px';
-
       container.appendChild(clone);
 
-      // FIX: Targeted Layout Adjustments for Download
-      // 1. Ensure name isn't cut off
+      // Layout Text Adjustments
       const nameEl = clone.querySelector('.download-card-name') as HTMLElement;
       if (nameEl) {
         nameEl.style.overflow = 'visible';
         nameEl.style.whiteSpace = 'nowrap';
-        // Ensure color is solid for html2canvas
         nameEl.style.textShadow = 'none';
-
-        // Adjust name font size
         const computedName = window.getComputedStyle(nameEl);
         const currentNameSize = parseFloat(computedName.fontSize);
-        if (currentNameSize) {
-          nameEl.style.fontSize = `${currentNameSize * 0.65}px`;
-        }
+        if (currentNameSize) nameEl.style.fontSize = `${currentNameSize * 0.65}px`;
       }
 
-      // 2. Adjust card number size (often renders too big in canvas)
       const numEl = clone.querySelector('.download-card-number') as HTMLElement;
       if (numEl) {
-        // Multiply font size by 0.55 to compensate for canvas rendering
         const computed = window.getComputedStyle(numEl);
         const currentSize = parseFloat(computed.fontSize);
-        if (currentSize) {
-          numEl.style.fontSize = `${currentSize * 0.55}px`;
-        }
+        if (currentSize) numEl.style.fontSize = `${currentSize * 0.55}px`;
       }
 
-      // 3. Adjust slogan size
       const sloganEl = clone.querySelector('.download-card-slogan') as HTMLElement;
       if (sloganEl) {
         const computed = window.getComputedStyle(sloganEl);
         const currentSize = parseFloat(computed.fontSize);
-        if (currentSize) {
-          sloganEl.style.fontSize = `${currentSize * 0.6}px`;
-        }
+        if (currentSize) sloganEl.style.fontSize = `${currentSize * 0.6}px`;
       }
 
-      // Copy canvas content (QR codes) manually
+      // Copy canvas (QR) explicitly
       const originalCanvases = originalCard.querySelectorAll('canvas');
       const cloneCanvases = clone.querySelectorAll('canvas');
       originalCanvases.forEach((orig, index) => {
         const dest = cloneCanvases[index];
         if (dest) {
+          dest.width = orig.width || 256;
+          dest.height = orig.height || 256;
           const ctx = dest.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(orig, 0, 0);
-          }
+          if (ctx) ctx.drawImage(orig, 0, 0);
         }
       });
 
-      // FIX: Targeted normalization for Gradient Elements to prevent "non-finite" errors.
-      // We only freeze dimensions for elements with gradients, leaving flex layout mostly intact.
+      // Dimension Locking for absolute safety
       const normalizeStyles = (element: HTMLElement) => {
         const computed = window.getComputedStyle(element);
-
-        // 1. Fix Font Size (cqw units)
         const fontSize = computed.fontSize;
-        if (fontSize && parseFloat(fontSize) > 0) {
-          element.style.fontSize = fontSize;
-        }
-
-        // 2. Fix Letter Spacing
+        if (fontSize && parseFloat(fontSize) > 0) element.style.fontSize = fontSize;
         if (computed.letterSpacing && computed.letterSpacing !== 'normal') {
           element.style.letterSpacing = computed.letterSpacing;
         }
 
-        // 3. TARGETED FIX FOR GRADIENTS:
-        // If an element has a gradient, we MUST give it explicit pixel dimensions
-        // otherwise html2canvas fails to calculate bounds for addColorStop
+        const elRect = element.getBoundingClientRect();
+        const finalWidth = Math.max(elRect.width, 1);
+        const finalHeight = Math.max(elRect.height, 1);
+        
+        element.style.width = `${finalWidth}px`;
+        element.style.height = `${finalHeight}px`;
+        element.style.maxWidth = `${finalWidth}px`;
+        element.style.maxHeight = `${finalHeight}px`;
+        element.style.minWidth = `${finalWidth}px`;
+        element.style.minHeight = `${finalHeight}px`;
+
+        // COMPLETELY BYPASS html2canvas pattern/gradient BUG
         const bgImage = computed.backgroundImage;
         if (bgImage && bgImage.includes('gradient')) {
-          const rect = element.getBoundingClientRect();
-          // Force exact pixel size on gradient elements
-          if (rect.width > 0 && rect.height > 0) {
-            element.style.width = `${rect.width}px`;
-            element.style.height = `${rect.height}px`;
-            // Disable aspect-ratio to prevent conflict
-            element.style.aspectRatio = 'auto';
+          element.style.backgroundImage = 'none';
+          element.style.background = 'none';
+          
+          // Apply solid fallbacks based on original styles to preserve visual aesthetics
+          if (bgImage.includes('#b91c1c') || bgImage.includes('135deg')) {
+            element.style.backgroundColor = '#991b1b'; // Dark red card background fallback
+          } else if (bgImage.includes('#fef08a') || bgImage.includes('yellow')) {
+            element.style.backgroundColor = '#eab308'; // Solid yellow chip fallback
           }
-          // Ensure the gradient syntax is safe (inline)
-          element.style.backgroundImage = bgImage;
         }
 
-        // Recurse
-        Array.from(element.children).forEach(child => {
-          normalizeStyles(child as HTMLElement);
-        });
+        Array.from(element.children).forEach(child => normalizeStyles(child as HTMLElement));
       };
-
       normalizeStyles(clone);
 
-      // Wait for images to load
-      await new Promise<void>((resolve) => {
-        const images = Array.from(clone.querySelectorAll('img'));
-        if (images.length === 0) {
-          resolve();
-          return;
-        }
+      // 4. ESPERAR CARGA DE IMÁGENES
+      const images = clone.querySelectorAll("img");
+      await Promise.all(
+        Array.from(images).map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise(res => {
+            img.onload = res;
+            img.onerror = res;
+          });
+        })
+      );
 
-        let loaded = 0;
-        const checkDone = () => {
-          loaded++;
-          if (loaded >= images.length) resolve();
-        };
+      // 3. ESPERAR RENDER COMPLETO (Delay as requested)
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-        images.forEach(img => {
-          if (img.complete) {
-            checkDone();
-          } else {
-            img.onload = checkDone;
-            img.onerror = checkDone;
-          }
-        });
-
-        // Fallback timeout
-        setTimeout(resolve, 2000);
-      });
-
+      // 5. CONFIGURAR html2canvas CORRECTAMENTE
       const canvas = await html2canvas(clone, {
-        scale: 2,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false,
         backgroundColor: null,
+        scale: 2,
         width: 800,
         height: 504,
-        logging: false,
+        logging: false
       });
 
-      document.body.removeChild(container);
+      // 6. VALIDAR CANVAS RESULTANTE
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error("Canvas generado inválido (dimensiones 0)");
+      }
 
+      return canvas.toDataURL('image/png');
+    } finally {
+      document.body.removeChild(container);
+    }
+  };
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const base64Image = await generateCardBase64();
       const link = document.createElement('a');
       link.download = `ADZ-Card-${card.card_number}.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.href = base64Image;
       link.click();
     } catch (error) {
       console.error('Error downloading card:', error);
-      alert('Error al descargar la tarjeta. Por favor intente de nuevo.');
+      alert('Error al generar la tarjeta. Intente de nuevo.');
     } finally {
       setIsDownloading(false);
     }
@@ -229,140 +215,8 @@ export function DigitalCard({ card, usageCount, onEdit, onBlock, onActivate }: D
         return;
       }
 
-      // Generate card image (reuse download logic)
-      const originalCard = cardRef.current;
-
-      // Setup off-screen container
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-10000px';
-      container.style.top = '0';
-      container.style.width = '800px';
-      container.style.height = '504px';
-      container.style.overflow = 'hidden';
-      document.body.appendChild(container);
-
-      // Clone the card
-      const clone = originalCard.cloneNode(true) as HTMLElement;
-      clone.style.containerType = 'normal';
-      clone.style.width = '800px';
-      clone.style.height = '504px';
-      clone.style.maxWidth = 'none';
-      clone.style.transform = 'none';
-      clone.style.margin = '0';
-      clone.style.borderRadius = '16px';
-
-      container.appendChild(clone);
-
-      // Apply same fixes as download
-      const nameEl = clone.querySelector('.download-card-name') as HTMLElement;
-      if (nameEl) {
-        nameEl.style.overflow = 'visible';
-        nameEl.style.whiteSpace = 'nowrap';
-        nameEl.style.textShadow = 'none';
-        const computedName = window.getComputedStyle(nameEl);
-        const currentNameSize = parseFloat(computedName.fontSize);
-        if (currentNameSize) {
-          nameEl.style.fontSize = `${currentNameSize * 0.65}px`;
-        }
-      }
-
-      const numEl = clone.querySelector('.download-card-number') as HTMLElement;
-      if (numEl) {
-        const computed = window.getComputedStyle(numEl);
-        const currentSize = parseFloat(computed.fontSize);
-        if (currentSize) {
-          numEl.style.fontSize = `${currentSize * 0.55}px`;
-        }
-      }
-
-      const sloganEl = clone.querySelector('.download-card-slogan') as HTMLElement;
-      if (sloganEl) {
-        const computed = window.getComputedStyle(sloganEl);
-        const currentSize = parseFloat(computed.fontSize);
-        if (currentSize) {
-          sloganEl.style.fontSize = `${currentSize * 0.6}px`;
-        }
-      }
-
-      // Copy canvas content
-      const originalCanvases = originalCard.querySelectorAll('canvas');
-      const cloneCanvases = clone.querySelectorAll('canvas');
-      originalCanvases.forEach((orig, index) => {
-        const dest = cloneCanvases[index];
-        if (dest) {
-          const ctx = dest.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(orig, 0, 0);
-          }
-        }
-      });
-
-      // Normalize styles for gradients
-      const normalizeStyles = (element: HTMLElement) => {
-        const computed = window.getComputedStyle(element);
-        const fontSize = computed.fontSize;
-        if (fontSize && parseFloat(fontSize) > 0) {
-          element.style.fontSize = fontSize;
-        }
-        if (computed.letterSpacing && computed.letterSpacing !== 'normal') {
-          element.style.letterSpacing = computed.letterSpacing;
-        }
-        const bgImage = computed.backgroundImage;
-        if (bgImage && bgImage.includes('gradient')) {
-          const rect = element.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            element.style.width = `${rect.width}px`;
-            element.style.height = `${rect.height}px`;
-            element.style.aspectRatio = 'auto';
-          }
-          element.style.backgroundImage = bgImage;
-        }
-        Array.from(element.children).forEach(child => {
-          normalizeStyles(child as HTMLElement);
-        });
-      };
-
-      normalizeStyles(clone);
-
-      // Wait for images to load
-      await new Promise<void>((resolve) => {
-        const images = Array.from(clone.querySelectorAll('img'));
-        if (images.length === 0) {
-          resolve();
-          return;
-        }
-        let loaded = 0;
-        const checkDone = () => {
-          loaded++;
-          if (loaded >= images.length) resolve();
-        };
-        images.forEach(img => {
-          if (img.complete) {
-            checkDone();
-          } else {
-            img.onload = checkDone;
-            img.onerror = checkDone;
-          }
-        });
-        setTimeout(resolve, 2000);
-      });
-
-      // Generate canvas
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: null,
-        width: 800,
-        height: 504,
-        logging: false,
-      });
-
-      document.body.removeChild(container);
-
-      // Convert canvas to base64
-      const cardImage = canvas.toDataURL('image/png');
+      // Generate card image (reuse download logic wrapper)
+      const base64Image = await generateCardBase64();
 
       // Send email via Edge Function
       const { error } = await supabase.functions.invoke('send-digital-card', {
@@ -371,7 +225,7 @@ export function DigitalCard({ card, usageCount, onEdit, onBlock, onActivate }: D
           customerEmail: customerData.email,
           customerName: customerData.name,
           cardNumber: card.card_number,
-          cardImage: cardImage,
+          cardImage: base64Image,
         }
       });
 
@@ -401,14 +255,6 @@ export function DigitalCard({ card, usageCount, onEdit, onBlock, onActivate }: D
             width: '100%'
           }}
         >
-          {/* Background Texture */}
-          <div className="absolute inset-0 opacity-10"
-            style={{
-              backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\' fill-rule=\'evenodd\'%3E%3Ccircle cx=\'3\' cy=\'3\' r=\'3\'/%3E%3Ccircle cx=\'13\' cy=\'13\' r=\'3\'/%3E%3C/g%3E%3C/svg%3E")',
-              backgroundSize: '4px 4px'
-            }}
-          />
-
           {/* Main Layout Layer */}
           <div className="relative z-10 w-full h-full flex flex-col p-[5%]">
 
