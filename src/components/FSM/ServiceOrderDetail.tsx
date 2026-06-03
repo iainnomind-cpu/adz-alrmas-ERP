@@ -26,8 +26,10 @@ import {
   Trash2,
   FileText,
   Copy,
-  Check
+  Check,
+  Users
 } from 'lucide-react';
+import { getTravelZoneLabel } from '../../constants/serviceOrderBilling';
 
 interface ServiceOrderDetailProps {
   orderId: string;
@@ -397,7 +399,7 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-gray-50 rounded-xl p-4">
                       <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                         <User className="w-5 h-5 text-blue-600" />
@@ -447,6 +449,23 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                             <span className="ml-2 font-medium">{order.total_time_minutes} minutos</span>
                           </div>
                         )}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <Users className="w-5 h-5 text-blue-600" />
+                        Operacion
+                      </h3>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-gray-600">Traslado:</span>
+                          <span className="ml-2 font-medium">{getTravelZoneLabel(order.travel_zone)}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Tecnicos:</span>
+                          <span className="ml-2 font-medium">{order.technician_count || 1}</span>
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -47,12 +47,14 @@ const SearchBar = memo(({ inputRef, searchInput, onSearchChange, onClearSearch }
 
 interface CustomerFilters {
   searchTerm: string;
-  status: 'all' | 'active' | 'cancelled' | 'migrated';
+  status: 'all' | 'active' | 'suspended' | 'inactive' | 'cancelled' | 'migrated';
   customerType: 'all' | 'comercio' | 'casa' | 'banco';
-  billingType: 'all' | 'ticket' | 'factura' | 'ambos';
-  servicePlan: 'all' | 'basico' | 'premium' | 'empresarial' | 'personalizado';
-  connectionTech: 'all' | 'telefono' | 'ip' | 'dual' | 'celular' | 'radio';
-  paymentStatus: 'all' | 'puntual' | 'tardado' | 'moroso' | 'suspendido';
+  propertyType: 'all' | 'casa' | 'comercio' | 'banco' | 'rancho' | 'gobierno' | 'pozo' | 'colegio';
+  billingPreference: 'all' | 'factura_credito' | 'factura_contado' | 'ticket_tf' | 'ticket_v';
+  billingCycle: 'all' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+  monitoringPlan: 'all' | 'plus_clasico' | 'plus_premium' | 'premium_com_15' | 'premium_com_20' | 'plus_com_15' | 'plus_com_20' | 'medical_premium' | 'boton_panico';
+  communicationTech: 'all' | 'telefono' | 'ip' | 'dual' | 'celular' | 'radio';
+  creditClassification: 'all' | 'puntual' | '15_dias' | '30_dias' | 'moroso';
   neighborhood: string;
   city: string;
   state: string;
@@ -60,6 +62,8 @@ interface CustomerFilters {
   dateTo: string;
   isMasterAccount: 'all' | 'yes' | 'no';
   accountType: 'all' | 'normal' | 'master' | 'consolidated' | 'corporativo';
+  alarmModel: string;
+  communicatorModel: string;
 }
 
 interface CustomerListProps {
@@ -86,17 +90,21 @@ export function CustomerList({ systemType }: CustomerListProps) {
     searchTerm: '',
     status: 'all',
     customerType: 'all',
-    billingType: 'all',
-    servicePlan: 'all',
-    connectionTech: 'all',
-    paymentStatus: 'all',
+    propertyType: 'all',
+    billingPreference: 'all',
+    billingCycle: 'all',
+    monitoringPlan: 'all',
+    communicationTech: 'all',
+    creditClassification: 'all',
     neighborhood: '',
     city: '',
     state: '',
     dateFrom: '',
     dateTo: '',
     isMasterAccount: 'all',
-    accountType: 'all'
+    accountType: 'all',
+    alarmModel: '',
+    communicatorModel: ''
   });
 
   const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
@@ -171,9 +179,14 @@ export function CustomerList({ systemType }: CustomerListProps) {
   const loadCustomers = async (pageNum: number, reset: boolean = false) => {
     setLoading(true);
     try {
+      let selectStr = '*';
+      if (filters.alarmModel || filters.communicatorModel) {
+        selectStr = '*, assets!inner(alarm_model, communicator_model)';
+      }
+
       let query = supabase
         .from('customers')
-        .select('*', { count: 'exact' })
+        .select(selectStr, { count: 'exact' })
         .order('account_number', { ascending: true });
 
       if (filters.searchTerm) {
@@ -196,20 +209,28 @@ export function CustomerList({ systemType }: CustomerListProps) {
         query = query.eq('customer_type', filters.customerType);
       }
 
-      if (filters.billingType !== 'all') {
-        query = query.eq('billing_type', filters.billingType);
+      if (filters.propertyType !== 'all') {
+        query = query.eq('property_type', filters.propertyType);
       }
 
-      if (filters.servicePlan !== 'all') {
-        query = query.eq('service_plan', filters.servicePlan);
+      if (filters.billingPreference !== 'all') {
+        query = query.eq('billing_preference', filters.billingPreference);
       }
 
-      if (filters.connectionTech !== 'all') {
-        query = query.eq('connection_technology', filters.connectionTech);
+      if (filters.billingCycle !== 'all') {
+        query = query.eq('billing_cycle', filters.billingCycle);
       }
 
-      if (filters.paymentStatus !== 'all') {
-        query = query.eq('payment_status', filters.paymentStatus);
+      if (filters.monitoringPlan !== 'all') {
+        query = query.eq('monitoring_plan', filters.monitoringPlan);
+      }
+
+      if (filters.communicationTech !== 'all') {
+        query = query.eq('communication_tech', filters.communicationTech);
+      }
+
+      if (filters.creditClassification !== 'all') {
+        query = query.eq('credit_classification', filters.creditClassification);
       }
 
       if (filters.neighborhood) {
@@ -233,14 +254,22 @@ export function CustomerList({ systemType }: CustomerListProps) {
       }
 
       if (filters.dateFrom) {
-        query = query.gte('alta_date', filters.dateFrom);
+        query = query.gte('created_at', filters.dateFrom);
       }
 
       if (filters.dateTo) {
-        query = query.lte('alta_date', filters.dateTo);
+        query = query.lte('created_at', filters.dateTo);
       }
 
-      const { data, error, count } = await query
+      if (filters.alarmModel) {
+        query = query.ilike('assets.alarm_model', `%${filters.alarmModel}%`);
+      }
+
+      if (filters.communicatorModel) {
+        query = query.ilike('assets.communicator_model', `%${filters.communicatorModel}%`);
+      }
+
+      const { data, error, count } = await (query as any)
         .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
       if (error) throw error;
@@ -368,34 +397,42 @@ export function CustomerList({ systemType }: CustomerListProps) {
       searchTerm: '',
       status: 'all',
       customerType: 'all',
-      billingType: 'all',
-      servicePlan: 'all',
-      connectionTech: 'all',
-      paymentStatus: 'all',
+      propertyType: 'all',
+      billingPreference: 'all',
+      billingCycle: 'all',
+      monitoringPlan: 'all',
+      communicationTech: 'all',
+      creditClassification: 'all',
       neighborhood: '',
       city: '',
       state: '',
       dateFrom: '',
       dateTo: '',
       isMasterAccount: 'all',
-      accountType: 'all'
+      accountType: 'all',
+      alarmModel: '',
+      communicatorModel: ''
     });
   };
 
   const hasActiveFilters = () => {
     return filters.status !== 'all' ||
       filters.customerType !== 'all' ||
-      filters.billingType !== 'all' ||
-      filters.servicePlan !== 'all' ||
-      filters.connectionTech !== 'all' ||
-      filters.paymentStatus !== 'all' ||
+      filters.propertyType !== 'all' ||
+      filters.billingPreference !== 'all' ||
+      filters.billingCycle !== 'all' ||
+      filters.monitoringPlan !== 'all' ||
+      filters.communicationTech !== 'all' ||
+      filters.creditClassification !== 'all' ||
       filters.neighborhood !== '' ||
       filters.city !== '' ||
       filters.state !== '' ||
       filters.dateFrom !== '' ||
       filters.dateTo !== '' ||
       filters.isMasterAccount !== 'all' ||
-      filters.accountType !== 'all';
+      filters.accountType !== 'all' ||
+      filters.alarmModel !== '' ||
+      filters.communicatorModel !== '';
   };
 
   return (
@@ -524,6 +561,8 @@ export function CustomerList({ systemType }: CustomerListProps) {
                 >
                   <option value="all">Todos</option>
                   <option value="active">Activos</option>
+                  <option value="suspended">Suspendidos</option>
+                  <option value="inactive">Inactivos</option>
                   <option value="cancelled">Cancelados</option>
                   <option value="migrated">Migrados</option>
                 </select>
@@ -544,39 +583,77 @@ export function CustomerList({ systemType }: CustomerListProps) {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Facturación</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Propiedad</label>
                 <select
-                  value={filters.billingType}
-                  onChange={(e) => setFilters({ ...filters, billingType: e.target.value as any })}
+                  value={filters.propertyType}
+                  onChange={(e) => setFilters({ ...filters, propertyType: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="all">Todos</option>
-                  <option value="ticket">Ticket</option>
-                  <option value="factura">Factura</option>
-                  <option value="ambos">Ambos</option>
+                  <option value="all">Todas</option>
+                  <option value="casa">Casa</option>
+                  <option value="comercio">Comercio</option>
+                  <option value="banco">Banco</option>
+                  <option value="rancho">Rancho</option>
+                  <option value="gobierno">Gobierno</option>
+                  <option value="pozo">Pozo</option>
+                  <option value="colegio">Colegio</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Plan de Servicio</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Plan de Monitoreo</label>
                 <select
-                  value={filters.servicePlan}
-                  onChange={(e) => setFilters({ ...filters, servicePlan: e.target.value as any })}
+                  value={filters.monitoringPlan}
+                  onChange={(e) => setFilters({ ...filters, monitoringPlan: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">Todos</option>
-                  <option value="basico">Básico</option>
-                  <option value="premium">Premium</option>
-                  <option value="empresarial">Empresarial</option>
-                  <option value="personalizado">Personalizado</option>
+                  <option value="plus_clasico">Plus Clásico</option>
+                  <option value="plus_premium">Plus Premium</option>
+                  <option value="premium_com_15">Premium Com. $15</option>
+                  <option value="premium_com_20">Premium Com. $20</option>
+                  <option value="plus_com_15">Plus Com. $15</option>
+                  <option value="plus_com_20">Plus Com. $20</option>
+                  <option value="medical_premium">Medical Premium</option>
+                  <option value="boton_panico">Botón de Pánico</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Tecnología</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Preferencia de Facturación</label>
                 <select
-                  value={filters.connectionTech}
-                  onChange={(e) => setFilters({ ...filters, connectionTech: e.target.value as any })}
+                  value={filters.billingPreference}
+                  onChange={(e) => setFilters({ ...filters, billingPreference: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Todas</option>
+                  <option value="factura_credito">Factura Crédito</option>
+                  <option value="factura_contado">Factura Contado</option>
+                  <option value="ticket_tf">Ticket T/F</option>
+                  <option value="ticket_v">Ticket T/V</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Ciclo de Facturación</label>
+                <select
+                  value={filters.billingCycle}
+                  onChange={(e) => setFilters({ ...filters, billingCycle: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Todos</option>
+                  <option value="monthly">Mensual</option>
+                  <option value="quarterly">Trimestral</option>
+                  <option value="semiannual">Semestral</option>
+                  <option value="annual">Anual</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Tecnología de Comunicación</label>
+                <select
+                  value={filters.communicationTech}
+                  onChange={(e) => setFilters({ ...filters, communicationTech: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">Todas</option>
@@ -589,17 +666,45 @@ export function CustomerList({ systemType }: CustomerListProps) {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Estado de Pago</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Clasificación de Crédito</label>
                 <select
-                  value={filters.paymentStatus}
-                  onChange={(e) => setFilters({ ...filters, paymentStatus: e.target.value as any })}
+                  value={filters.creditClassification}
+                  onChange={(e) => setFilters({ ...filters, creditClassification: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="all">Todos</option>
+                  <option value="all">Todas</option>
                   <option value="puntual">Puntual</option>
-                  <option value="tardado">Tardado</option>
+                  <option value="15_dias">15 días</option>
+                  <option value="30_dias">30 días</option>
                   <option value="moroso">Moroso</option>
-                  <option value="suspendido">Suspendido</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Cuenta</label>
+                <select
+                  value={filters.accountType}
+                  onChange={(e) => setFilters({ ...filters, accountType: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Todas</option>
+                  <option value="normal">Normal</option>
+                  <option value="master">Maestra</option>
+                  <option value="consolidated">Consolidada</option>
+                  <option value="corporativo">Corporativo</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta Maestra</label>
+                <select
+                  value={filters.isMasterAccount}
+                  onChange={(e) => setFilters({ ...filters, isMasterAccount: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Todas</option>
+                  <option value="yes">Sí (más de 2 servicios)</option>
+                  <option value="no">No</option>
                 </select>
               </div>
 
@@ -618,21 +723,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Ciudad</label>
-                <select
-                  value={filters.city}
-                  onChange={(e) => setFilters({ ...filters, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Todas</option>
-                  {cities.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Estado</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Estado (Ubicación)</label>
                 <select
                   value={filters.state}
                   onChange={(e) => setFilters({ ...filters, state: e.target.value })}
@@ -645,31 +736,18 @@ export function CustomerList({ systemType }: CustomerListProps) {
                 </select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta Maestra</label>
-                <select
-                  value={filters.isMasterAccount}
-                  onChange={(e) => setFilters({ ...filters, isMasterAccount: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">Todas</option>
-                  <option value="yes">Sí (más de 2 servicios)</option>
-                  <option value="no">No</option>
-                </select>
-              </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Cuenta</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Ciudad</label>
                 <select
-                  value={filters.accountType}
-                  onChange={(e) => setFilters({ ...filters, accountType: e.target.value as any })}
+                  value={filters.city}
+                  onChange={(e) => setFilters({ ...filters, city: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="all">Todas</option>
-                  <option value="normal">Normal</option>
-                  <option value="master">Maestra</option>
-                  <option value="consolidated">Consolidada</option>
-                  <option value="corporativo">Corporativo</option>
+                  <option value="">Todas</option>
+                  {cities.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
                 </select>
               </div>
 
@@ -692,6 +770,40 @@ export function CustomerList({ systemType }: CustomerListProps) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+            </div>
+
+            {/* Filtros de modelo/comunicador del equipo */}
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-500 rounded-full inline-block"></span>
+                Filtros por Equipo (Activos instalados)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Modelo de Alarma</label>
+                  <input
+                    type="text"
+                    value={filters.alarmModel}
+                    onChange={(e) => setFilters({ ...filters, alarmModel: e.target.value })}
+                    placeholder="Ej. Neo, Power Series, Vista..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Modelo de Comunicador</label>
+                  <input
+                    type="text"
+                    value={filters.communicatorModel}
+                    onChange={(e) => setFilters({ ...filters, communicatorModel: e.target.value })}
+                    placeholder="Ej. Cenor, TL280, IP150..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                ⚠️ Estos filtros buscan en los activos instalados del cliente. Solo se mostrarán clientes que tengan al menos un activo que coincida.
+              </p>
             </div>
           </div>
         )}

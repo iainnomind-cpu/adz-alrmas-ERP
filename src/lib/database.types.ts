@@ -396,6 +396,7 @@ export type Database = {
           suspension_reason: string | null
           birth_date: string | null
           annual_fee_due_date: string | null
+          annuity_month: number | null
           last_signal_received: string | null
           cancellation_reason: string | null
           cancellation_date: string | null
@@ -433,6 +434,7 @@ export type Database = {
           suspension_reason?: string | null
           birth_date?: string | null
           annual_fee_due_date?: string | null
+          annuity_month?: number | null
           last_signal_received?: string | null
           cancellation_reason?: string | null
           cancellation_date?: string | null
@@ -470,6 +472,7 @@ export type Database = {
           suspension_reason?: string | null
           birth_date?: string | null
           annual_fee_due_date?: string | null
+          annuity_month?: number | null
           last_signal_received?: string | null
           cancellation_reason?: string | null
           cancellation_date?: string | null

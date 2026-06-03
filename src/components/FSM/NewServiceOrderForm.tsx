@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { X, Save, Loader2, Search, FileText, Shield, Hash, AlertCircle } from 'lucide-react';
+import { X, Save, Loader2, Search, FileText, Shield, Hash, AlertCircle, MapPin, Users } from 'lucide-react';
+import { SERVICE_TRAVEL_ZONES } from '../../constants/serviceOrderBilling';
 
 interface NewServiceOrderFormProps {
   onClose: () => void;
@@ -39,6 +40,8 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
     priority: 'normal',
     service_type: 'reactive',
     estimated_duration_minutes: 60,
+    travel_zone: 'zm_cd_guzman_50km',
+    technician_count: 1,
     notes: '',
     monitoring_center_folio: '',
     scheduled_date: '',
@@ -262,6 +265,8 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
         priority: formData.priority,
         service_type: formData.service_type,
         estimated_duration_minutes: formData.estimated_duration_minutes,
+        travel_zone: formData.travel_zone,
+        technician_count: formData.technician_count,
         notes: formData.notes || null,
         monitoring_center_folio: formData.monitoring_center_folio || null,
         scheduled_date: formData.scheduled_date || null,
@@ -479,6 +484,49 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-gray-500" />
+                  Zona / Traslado
+                </label>
+                <select
+                  value={formData.travel_zone}
+                  onChange={(e) => setFormData({ ...formData, travel_zone: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  {SERVICE_TRAVEL_ZONES.map((zone) => (
+                    <option key={zone.value} value={zone.value}>
+                      {zone.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Se registra desde el alta para informar cargos de traslado antes del cobro.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-gray-500" />
+                  Numero de tecnicos
+                </label>
+                <input
+                  type="number"
+                  value={formData.technician_count}
+                  onChange={(e) => setFormData({ ...formData, technician_count: Math.max(1, parseInt(e.target.value) || 1) })}
+                  min="1"
+                  step="1"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Solo para registro y control; no modifica el costo de la visita.
+                </p>
+              </div>
             </div>
 
             {formData.customer_id && assets.length > 0 && (

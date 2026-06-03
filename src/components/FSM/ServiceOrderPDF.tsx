@@ -259,7 +259,7 @@ export function ServiceOrderPDF({ orderId }: ServiceOrderPDFProps) {
                   <th>Material</th>
                   <th>Código</th>
                   <th>Cantidad</th>
-                  <th>Precio Unitario</th>
+                  <th>Precio Neto</th>
                   <th>Total</th>
                 </tr>
               </thead>

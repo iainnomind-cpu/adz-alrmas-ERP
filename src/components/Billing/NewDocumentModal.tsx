@@ -2,9 +2,21 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
     X, FileText, DollarSign, Search,
-    AlertCircle, Loader2
+    AlertCircle, Loader2, AlertTriangle, Clock, CreditCard
 } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
+
+interface PendingDebt {
+    id: string;
+    folio: string;
+    document_type: string;
+    concept: string | null;
+    total: number;
+    balance: number;
+    payment_status: string;
+    issue_date: string;
+    due_date: string | null;
+}
 
 type Customer = Database['public']['Tables']['customers']['Row'];
 
@@ -25,6 +37,10 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
     const [searching, setSearching] = useState(false);
     const searchTimeoutRef = useRef<NodeJS.Timeout>();
     const [showResults, setShowResults] = useState(false);
+
+    // Pending Debts State
+    const [pendingDebts, setPendingDebts] = useState<PendingDebt[]>([]);
+    const [loadingDebts, setLoadingDebts] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -64,6 +80,7 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
             setSearchTerm('');
             setCustomers([]);
             setError(null);
+            setPendingDebts([]);
         }
     }, [isOpen]);
 
@@ -109,10 +126,31 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
         }, 300);
     };
 
+    const loadPendingDebts = async (customerId: string) => {
+        setLoadingDebts(true);
+        try {
+            const { data, error } = await supabase
+                .from('billing_documents')
+                .select('id, folio, document_type, concept, total, balance, payment_status, issue_date, due_date')
+                .eq('customer_id', customerId)
+                .in('payment_status', ['pending', 'partial', 'overdue'])
+                .order('due_date', { ascending: true });
+            if (error) throw error;
+            setPendingDebts((data as PendingDebt[]) || []);
+        } catch (err) {
+            console.error('Error loading pending debts:', err);
+            setPendingDebts([]);
+        } finally {
+            setLoadingDebts(false);
+        }
+    };
+
     const handleSelectCustomer = (customer: Customer) => {
         setSelectedCustomer(customer);
         setSearchTerm(customer.business_name || customer.name);
         setShowResults(false);
+        setPendingDebts([]);
+        loadPendingDebts(customer.id);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -220,6 +258,80 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                             </div>
                         )}
                     </div>
+
+                    {/* Pending Debts Panel */}
+                    {selectedCustomer && (loadingDebts ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Verificando deudas pendientes...
+                        </div>
+                    ) : pendingDebts.length > 0 ? (
+                        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                                <span className="font-semibold text-amber-800">
+                                    ⚠️ Este cliente tiene {pendingDebts.length} cargo{pendingDebts.length !== 1 ? 's' : ''} pendiente{pendingDebts.length !== 1 ? 's' : ''} sin cobrar
+                                </span>
+                            </div>
+                            <div className="space-y-2 mb-3">
+                                {pendingDebts.map(debt => {
+                                    const isOverdue = debt.payment_status === 'overdue';
+                                    const isPartial = debt.payment_status === 'partial';
+                                    return (
+                                        <div
+                                            key={debt.id}
+                                            className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
+                                                isOverdue ? 'bg-red-100 border border-red-200' :
+                                                isPartial ? 'bg-yellow-100 border border-yellow-200' :
+                                                'bg-blue-50 border border-blue-200'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                {isOverdue ? (
+                                                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                                                ) : isPartial ? (
+                                                    <CreditCard className="w-3.5 h-3.5 text-yellow-600 flex-shrink-0" />
+                                                ) : (
+                                                    <Clock className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                                )}
+                                                <span className={`font-semibold ${
+                                                    isOverdue ? 'text-red-700' : isPartial ? 'text-yellow-700' : 'text-blue-700'
+                                                }`}>{debt.folio}</span>
+                                                <span className="text-gray-600 truncate">{debt.concept || debt.document_type}</span>
+                                                {debt.due_date && (
+                                                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                                                        isOverdue ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-700'
+                                                    }`}>
+                                                        {isOverdue ? `Vencido: ` : `Vence: `}
+                                                        {new Date(debt.due_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-right flex-shrink-0 ml-2">
+                                                <span className={`font-bold ${
+                                                    isOverdue ? 'text-red-700' : isPartial ? 'text-yellow-700' : 'text-blue-700'
+                                                }`}>${debt.balance.toFixed(2)}</span>
+                                                {isPartial && (
+                                                    <div className="text-xs text-gray-500">de ${debt.total.toFixed(2)}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex items-center justify-between pt-2 border-t border-amber-300">
+                                <span className="text-sm font-medium text-amber-800">Total pendiente por cobrar:</span>
+                                <span className="text-lg font-bold text-amber-900">
+                                    ${pendingDebts.reduce((sum, d) => sum + (d.balance || 0), 0).toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                            <AlertCircle className="w-4 h-4 text-green-600" />
+                            ✅ Sin deudas pendientes — cliente al corriente
+                        </div>
+                    ))}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>

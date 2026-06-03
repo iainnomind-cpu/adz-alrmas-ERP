@@ -31,6 +31,16 @@ interface NotificationHistory {
   sent_at: string;
 }
 
+export const COMMON_VARIABLES = [
+  { key: 'customer_name', label: 'Nombre del Cliente' },
+  { key: 'company_name', label: 'Nombre de la Empresa' },
+  { key: 'account_number', label: 'No. de Cuenta' },
+  { key: 'amount', label: 'Monto' },
+  { key: 'due_date', label: 'Fecha de Vencimiento' },
+  { key: 'service_date', label: 'Fecha de Servicio' },
+  { key: 'technician_name', label: 'Nombre del Técnico' }
+];
+
 export function NotificationsManager() {
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [configs, setConfigs] = useState<NotificationConfig[]>([]);
@@ -39,6 +49,8 @@ export function NotificationsManager() {
   const [activeTab, setActiveTab] = useState<'templates' | 'config' | 'history'>('templates');
   const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [activeModalTab, setActiveModalTab] = useState<'editor' | 'preview'>('editor');
+  const [draggedVariable, setDraggedVariable] = useState<string | null>(null);
   const [templateForm, setTemplateForm] = useState({
     name: '',
     type: 'custom' as string,
@@ -134,6 +146,7 @@ export function NotificationsManager() {
       variables: [],
       is_active: true
     });
+    setActiveModalTab('editor');
     setShowTemplateModal(true);
   };
 
@@ -147,6 +160,7 @@ export function NotificationsManager() {
       variables: template.variables || [],
       is_active: template.is_active
     });
+    setActiveModalTab('editor');
     setShowTemplateModal(true);
   };
 
@@ -216,6 +230,65 @@ export function NotificationsManager() {
     if (!error) {
       setTemplates(prev => prev.filter(t => t.id !== templateId));
     }
+  };
+
+  const handleDragStart = (e: React.DragEvent, variableKey: string) => {
+    e.dataTransfer.setData('text/plain', `{{${variableKey}}}`);
+    setDraggedVariable(variableKey);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedVariable(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, field: 'subject' | 'body') => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData('text/plain');
+    if (!data) return;
+
+    setTemplateForm(prev => {
+      const updated = { ...prev, [field]: prev[field] + data };
+      
+      const subjectVars = extractVariables(updated.subject);
+      const bodyVars = extractVariables(updated.body);
+      updated.variables = Array.from(new Set([...subjectVars, ...bodyVars]));
+      
+      return updated;
+    });
+  };
+
+  const generatePreviewHtml = (htmlBody: string) => {
+    // Replace variables with fake data for preview
+    let previewBody = htmlBody;
+    previewBody = previewBody.replace(/{{customer_name}}/g, 'Juan Pérez');
+    previewBody = previewBody.replace(/{{company_name}}/g, 'Nuestra Empresa');
+    previewBody = previewBody.replace(/{{account_number}}/g, 'CTA-12345');
+    previewBody = previewBody.replace(/{{amount}}/g, '$1,500.00');
+    previewBody = previewBody.replace(/{{due_date}}/g, '30 de Noviembre, 2026');
+    previewBody = previewBody.replace(/{{service_date}}/g, '25 de Noviembre, 2026');
+    previewBody = previewBody.replace(/{{technician_name}}/g, 'Carlos Gómez');
+    
+    // Replace newline with br
+    previewBody = previewBody.replace(/\n/g, '<br/>');
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; padding: 20px; border-radius: 8px;">
+        <div style="background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e5e7eb;">
+          <div style="text-align: center; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 2px solid #f3f4f6;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background-color: #2563eb; color: white; border-radius: 12px; font-weight: bold; font-size: 24px;">
+              LOGO
+            </div>
+          </div>
+          <div style="color: #374151; font-size: 16px; line-height: 1.6;">
+            ${previewBody}
+          </div>
+          <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f3f4f6; text-align: center; color: #9ca3af; font-size: 12px;">
+            Este es un correo automático, por favor no responda a este mensaje.<br/>
+            © 2026 Nuestra Empresa. Todos los derechos reservados.
+          </div>
+        </div>
+      </div>
+    `;
   };
 
   const extractVariables = (text: string): string[] => {
@@ -629,6 +702,8 @@ export function NotificationsManager() {
                   type="text"
                   value={templateForm.subject}
                   onChange={(e) => updateTemplateField('subject', e.target.value)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleDrop(e, 'subject')}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Ej: ¡Feliz Cumpleaños {{customer_name}}!"
                 />
@@ -645,6 +720,8 @@ export function NotificationsManager() {
                 <textarea
                   value={templateForm.body}
                   onChange={(e) => updateTemplateField('body', e.target.value)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleDrop(e, 'body')}
                   rows={10}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
                   placeholder={`Estimado/a {{customer_name}},\n\n¡Feliz cumpleaños! Desde todo el equipo de {{company_name}} queremos desearte un día maravilloso.\n\nSaludos,\nEquipo de {{company_name}}`}

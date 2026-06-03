@@ -26,6 +26,7 @@ Deno.serve(async (req: Request) => {
             birthdays: 0,
             annualFees: 0,
             paymentReminders: 0,
+            suspensionEndAlerts: 0,
             errors: [] as string[],
         };
 
@@ -60,6 +61,17 @@ Deno.serve(async (req: Request) => {
             console.log(`Processed ${paymentCount} payment reminder notifications`);
         } catch (error) {
             const errorMsg = `Payment reminder notifications error: ${error instanceof Error ? error.message : 'Unknown'}`;
+            console.error(errorMsg);
+            results.errors.push(errorMsg);
+        }
+
+        // 4. Process Suspension End Alerts
+        try {
+            const suspensionEndCount = await processSuspensionEndAlerts(supabase);
+            results.suspensionEndAlerts = suspensionEndCount;
+            console.log(`Processed ${suspensionEndCount} suspension end alerts`);
+        } catch (error) {
+            const errorMsg = `Suspension end alerts error: ${error instanceof Error ? error.message : 'Unknown'}`;
             console.error(errorMsg);
             results.errors.push(errorMsg);
         }
@@ -315,6 +327,109 @@ async function processPaymentReminderNotifications(supabase: any): Promise<numbe
     }
 
     return sentCount;
+}
+
+// Process suspension end alerts without changing the customer status automatically.
+async function processSuspensionEndAlerts(supabase: any): Promise<number> {
+    const { data: config } = await supabase
+        .from('notification_config')
+        .select('is_enabled')
+        .eq('notification_type', 'suspension_end_alert')
+        .single();
+
+    if (config && config.is_enabled === false) {
+        console.log('Suspension end alert notifications are disabled');
+        return 0;
+    }
+
+    const { data: template } = await supabase
+        .from('notification_templates')
+        .select('*')
+        .eq('type', 'suspension_end_alert')
+        .eq('is_active', true)
+        .single();
+
+    if (!template) {
+        console.log('No active suspension end alert template found');
+        return 0;
+    }
+
+    const todayMexico = getMexicoDateKey(new Date());
+
+    const { data: customers } = await supabase
+        .from('customers')
+        .select('id, name, email, account_number, is_suspended, suspension_end_date, suspension_reason')
+        .eq('is_suspended', true)
+        .not('email', 'is', null)
+        .not('suspension_end_date', 'is', null);
+
+    if (!customers || customers.length === 0) {
+        return 0;
+    }
+
+    const dueTodayCustomers = customers.filter((customer: any) =>
+        customer.suspension_end_date &&
+        getMexicoDateKey(new Date(customer.suspension_end_date)) === todayMexico
+    );
+
+    console.log(`Found ${dueTodayCustomers.length} customers with suspension ending today (${todayMexico})`);
+
+    let sentCount = 0;
+    for (const customer of dueTodayCustomers) {
+        try {
+            const { data: existingNotification } = await supabase
+                .from('notification_history')
+                .select('id')
+                .eq('customer_id', customer.id)
+                .eq('notification_type', 'suspension_end_alert')
+                .gte('sent_at', `${todayMexico}T00:00:00-06:00`)
+                .lt('sent_at', `${todayMexico}T23:59:59-06:00`)
+                .limit(1)
+                .single();
+
+            if (existingNotification) {
+                console.log(`Skipping ${customer.email} - suspension end alert already sent today`);
+                continue;
+            }
+
+            await sendNotification(supabase, {
+                templateId: template.id,
+                customerId: customer.id,
+                customerEmail: customer.email,
+                customerName: customer.name,
+                notificationType: 'suspension_end_alert',
+                variables: {
+                    customer_name: customer.name,
+                    account_number: customer.account_number || 'N/A',
+                    end_date: new Date(customer.suspension_end_date).toLocaleDateString('es-MX', {
+                        timeZone: 'America/Mexico_City',
+                    }),
+                    reason: customer.suspension_reason || 'N/A',
+                    company_name: 'Alarmas ADZ',
+                },
+            });
+            sentCount++;
+        } catch (error) {
+            console.error(`Error sending suspension end alert to ${customer.email}:`, error);
+        }
+    }
+
+    return sentCount;
+}
+
+function getMexicoDateKey(date: Date): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Mexico_City',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(date);
+
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+
+    return `${year}-${month}-${day}`;
 }
 
 // Helper function to send notification via send-notification function

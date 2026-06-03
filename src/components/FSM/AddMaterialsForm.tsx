@@ -462,7 +462,7 @@ export function AddMaterialsForm({ serviceOrderId, onSuccess }: AddMaterialsForm
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
                     <label className="block text-xs font-medium text-gray-700 mb-1 line-through opacity-50">
-                      Costo Unit. (Automático)
+                      Precio Neto (Automático)
                     </label>
                     <input
                       type="number"

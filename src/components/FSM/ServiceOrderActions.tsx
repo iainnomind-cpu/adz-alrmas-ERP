@@ -10,6 +10,7 @@ import {
   AlertCircle,
   MapPinOff
 } from 'lucide-react';
+import { calculateLaborCharge } from '../../constants/serviceOrderBilling';
 
 interface ServiceOrderActionsProps {
   orderId: string;
@@ -103,6 +104,8 @@ export function ServiceOrderActions({
         timeLogData.latitude = location.latitude;
         timeLogData.longitude = location.longitude;
       }
+
+      timeLogData.notes += `. Mano de obra: ${laborCharge.label} ($${laborCharge.cost.toFixed(2)})`;
 
       const { error: timeLogError } = await supabase.from('service_order_time_logs').insert([timeLogData]);
 
@@ -213,10 +216,23 @@ export function ServiceOrderActions({
       const checkInDate = checkInTime ? new Date(checkInTime) : new Date();
       const checkOutDate = new Date(checkOutTimestamp);
       const totalMinutes = Math.round((checkOutDate.getTime() - checkInDate.getTime()) / 60000);
+      const laborCharge = calculateLaborCharge(totalMinutes);
+
+      const { data: currentOrder, error: orderError } = await supabase
+        .from('service_orders')
+        .select('materials_cost')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) throw orderError;
+
+      const materialsCost = Number((currentOrder as any)?.materials_cost || 0);
 
       const updateData: any = {
         check_out_time: checkOutTimestamp,
         total_time_minutes: totalMinutes,
+        labor_cost: laborCharge.cost,
+        total_cost: materialsCost + laborCharge.cost,
         is_paused: false
       };
 

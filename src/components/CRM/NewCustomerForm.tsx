@@ -20,6 +20,7 @@ interface CustomerFormState extends CustomerInsert {
   neighborhood?: string | null;
   city?: string | null;
   state?: string | null;
+  annuity_month?: number | null;
 }
 
 interface NewCustomerFormProps {
@@ -72,6 +73,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
     is_single_branch: customer?.is_single_branch || false,
     pricing_tier: customer?.pricing_tier || 1,
     birth_date: customer?.birth_date || null,
+    annuity_month: (customer as any)?.annuity_month || null,
   });
 
   useEffect(() => {
@@ -199,19 +201,6 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nombre <span className="text-red-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.name || ''}
-                  onChange={(e) => handleChange('name', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nombre del Propietario
                 </label>
                 <input
@@ -219,6 +208,19 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   value={formData.owner_name || ''}
                   onChange={(e) => handleChange('owner_name', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre del Encargado <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name || ''}
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
                 />
               </div>
 
@@ -232,6 +234,23 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   onChange={(e) => handleChange('business_name', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre de Sucursal
+                </label>
+                <input
+                  type="text"
+                  value={formData.branch_name || ''}
+                  onChange={(e) => handleChange('branch_name', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Ej: Sucursal Zapotiltic"
+                  disabled={formData.is_single_branch}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Para un solo servicio, usar "Sucursal Única"
+                </p>
               </div>
 
               <div>
@@ -321,6 +340,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   <option value="rancho">Rancho</option>
                   <option value="gobierno">Gobierno</option>
                   <option value="pozo">Pozo</option>
+                  <option value="colegio">Colegio</option>
                 </select>
               </div>
 
@@ -419,22 +439,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nombre de Sucursal
-                </label>
-                <input
-                  type="text"
-                  value={formData.branch_name || ''}
-                  onChange={(e) => handleChange('branch_name', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Ej: Sucursal Zapotiltic"
-                  disabled={formData.is_single_branch}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Para un solo servicio, usar "Sucursal Única"
-                </p>
-              </div>
+
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -467,6 +472,34 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   <option value="annual">Anual</option>
                 </select>
               </div>
+
+              {formData.billing_cycle === 'annual' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Mes de Anualidad (Inicio de Ciclo) <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={formData.annuity_month || ''}
+                    onChange={(e) => handleChange('annuity_month', parseInt(e.target.value))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required={formData.billing_cycle === 'annual'}
+                  >
+                    <option value="">Seleccionar mes...</option>
+                    <option value="1">Enero</option>
+                    <option value="2">Febrero</option>
+                    <option value="3">Marzo</option>
+                    <option value="4">Abril</option>
+                    <option value="5">Mayo</option>
+                    <option value="6">Junio</option>
+                    <option value="7">Julio</option>
+                    <option value="8">Agosto</option>
+                    <option value="9">Septiembre</option>
+                    <option value="10">Octubre</option>
+                    <option value="11">Noviembre</option>
+                    <option value="12">Diciembre</option>
+                  </select>
+                </div>
+              )}
 
               <div className="md:col-span-2 space-y-4">
                 <h3 className="font-medium text-gray-900 border-b pb-2">Domicilio Monitoreado</h3>
@@ -596,6 +629,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   <option value="active">Activo</option>
                   <option value="suspended">Suspendido</option>
                   <option value="inactive">Inactivo</option>
+                  <option value="cancelled">Cancelado</option>
                 </select>
               </div>
 
