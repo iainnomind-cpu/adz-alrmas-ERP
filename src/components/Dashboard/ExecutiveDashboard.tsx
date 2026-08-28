@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   DollarSign,
-  Users,
   Wrench,
   TrendingUp,
   AlertTriangle,
@@ -97,14 +96,6 @@ export function ExecutiveDashboard() {
   if (!kpis) return null;
 
   const kpiCards = [
-    {
-      title: 'Clientes Activos',
-      value: kpis.activeCustomers,
-      subtitle: `de ${kpis.totalCustomers} totales`,
-      icon: Users,
-      color: 'from-blue-500 to-cyan-500',
-      iconBg: 'bg-blue-100 text-blue-600'
-    },
     {
       title: 'Ingresos Cobrados',
       value: `$${kpis.totalRevenue.toFixed(0)}`,
