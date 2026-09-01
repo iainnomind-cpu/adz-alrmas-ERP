@@ -62,8 +62,11 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
         { id: 'customers-cctv', label: 'CCTV' },
         { id: 'customers-acceso', label: 'Control de Acceso' },
         { id: 'customers-asistencia', label: 'Control de Asistencia' },
-        { id: 'customers-videoportero', label: 'Video Portero' },
-        { id: 'customers-red', label: 'Red' }
+        { id: 'customers-domotica', label: 'Domótica' },
+        { id: 'customers-gps-personal', label: 'GPS Personal' },
+        { id: 'customers-gps-vehicular', label: 'GPS Vehicular' },
+        { id: 'customers-red', label: 'Red' },
+        { id: 'customers-videoportero', label: 'Video Portero' }
       ]
     },
     { id: 'service-orders', label: 'Órdenes de Servicio', icon: Wrench },

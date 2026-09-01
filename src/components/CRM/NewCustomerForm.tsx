@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { X, Save, Loader2 } from 'lucide-react';
+import { X, Save, Loader2, Hash, Sparkles } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
 import { LocationMap } from './LocationMap';
 import { SYSTEM_TYPES } from '../../constants/systemTypes';
+import { getNextProgressiveAccountNumber, formatCustomerAccountNumber } from '../../utils/customerAccountNumber';
+
 type CustomerInsert = Database['public']['Tables']['customers']['Insert'] & {
   branch_name?: string;
   is_single_branch?: boolean;
@@ -40,6 +42,11 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [masterAccounts, setMasterAccounts] = useState<MasterAccount[]>([]);
+  const [accountPreview, setAccountPreview] = useState<{ nextSequence: number; formattedAccount: string }>({
+    nextSequence: 1,
+    formattedAccount: ''
+  });
+
   const [formData, setFormData] = useState<CustomerFormState>({
     name: customer?.name || '',
     owner_name: customer?.owner_name || '',
@@ -79,6 +86,12 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
   useEffect(() => {
     loadMasterAccounts();
   }, []);
+
+  useEffect(() => {
+    if (!customer?.id) {
+      getNextProgressiveAccountNumber(formData.system_type || 'alarma').then(setAccountPreview);
+    }
+  }, [formData.system_type, customer?.id]);
 
   const loadMasterAccounts = async () => {
     const { data } = await supabase
@@ -121,6 +134,12 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
 
         if (updateError) throw updateError;
       } else {
+        // Asignar número de cuenta progresivo para nuevos clientes si no se tiene uno asignado
+        if (!payload.account_number) {
+          const progressive = await getNextProgressiveAccountNumber(formData.system_type || 'alarma');
+          payload.account_number = progressive.nextSequence;
+        }
+
         // Create new customer
         const { error: insertError } = await supabase
           .from('customers')
@@ -180,9 +199,15 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
       <div className="min-h-screen px-4 py-8 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl">
           <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 rounded-t-2xl flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">
-              {customer ? 'Editar Cliente' : 'Nuevo Cliente'}
-            </h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-2xl font-bold text-white">
+                {customer ? 'Editar Cliente' : 'Nuevo Cliente'}
+              </h2>
+              <span className="px-3 py-1 bg-white/20 text-white rounded-full text-xs font-bold border border-white/30 backdrop-blur-sm flex items-center gap-1.5">
+                <Hash className="w-3.5 h-3.5" />
+                Cuenta: {customer?.account_number ? formatCustomerAccountNumber(customer.account_number, customer.system_type) : (accountPreview.formattedAccount || 'Generando...')}
+              </span>
+            </div>
             <button
               onClick={onClose}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
@@ -294,9 +319,15 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo de Sistema
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Tipo de Sistema
+                  </label>
+                  <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-blue-500" />
+                    {customer?.account_number ? formatCustomerAccountNumber(customer.account_number, formData.system_type) : (accountPreview.formattedAccount || 'Progresivo')}
+                  </span>
+                </div>
                 <select
                   value={formData.system_type || 'alarma'}
                   onChange={(e) => handleChange('system_type', e.target.value)}
@@ -308,6 +339,9 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                     </option>
                   ))}
                 </select>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Numeración alfanumérica progresiva automática con prefijo (ej: CCTV-1, ACC-1, etc.)
+                </p>
               </div>
 
               <div>

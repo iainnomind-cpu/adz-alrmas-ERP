@@ -78,6 +78,12 @@ function App() {
         return <CustomerList systemType="control_acceso" />;
       case 'customers-asistencia':
         return <CustomerList systemType="control_asistencia" />;
+      case 'customers-domotica':
+        return <CustomerList systemType="domotica" />;
+      case 'customers-gps-personal':
+        return <CustomerList systemType="gps_personal" />;
+      case 'customers-gps-vehicular':
+        return <CustomerList systemType="gps_vehicular" />;
       case 'customers-videoportero':
         return <CustomerList systemType="video_portero" />;
       case 'customers-red':
