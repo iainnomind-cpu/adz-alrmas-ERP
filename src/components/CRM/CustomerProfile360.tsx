@@ -23,7 +23,8 @@ import {
   MessageSquare,
   History,
   Eye,
-  Plus
+  Plus,
+  Hash
 } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
 import { MasterAccountManager } from './MasterAccountManager';
@@ -32,6 +33,7 @@ import { CustomerHistory } from './CustomerHistory';
 import { SuspensionManager } from './SuspensionManager';
 import { DigitalCardsManager } from './DigitalCardsManager';
 import { AssetDetailView } from '../Assets/AssetDetailView';
+import { formatCustomerAccountNumber } from '../../utils/customerAccountNumber';
 
 type Customer = Database['public']['Tables']['customers']['Row'];
 type Contact = Database['public']['Tables']['customer_contacts']['Row'];
@@ -259,8 +261,12 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                 <Building2 className="w-8 h-8 text-white" />
               </div>
               <div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-2xl font-bold text-white">{customer.name}</h2>
+                  <span className="px-2.5 py-0.5 bg-white/20 text-white rounded-full text-xs font-bold border border-white/30 backdrop-blur-sm flex items-center gap-1">
+                    <Hash className="w-3.5 h-3.5" />
+                    Cuenta: {formatCustomerAccountNumber(customer.account_number, customer.system_type)}
+                  </span>
                   {activeCardsCount > 0 && (
                     <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium flex items-center gap-1">
                       <CreditCard className="w-4 h-4" />

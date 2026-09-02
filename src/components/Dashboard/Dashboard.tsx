@@ -22,22 +22,22 @@ import {
   Calendar
 } from 'lucide-react';
 
-type TabType = 'executive' | 'customers' | 'portfolio' | 'credit' | 'services' | 'technicians' | 'financial' | 'inventory' | 'aging' | 'trends';
+type TabType = 'portfolio' | 'customers' | 'services' | 'executive' | 'credit' | 'trends' | 'financial' | 'inventory' | 'technicians' | 'aging';
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('executive');
 
   const tabs = [
+    { id: 'portfolio' as TabType, label: '1.- Cartera Clientes', icon: Briefcase },
+    { id: 'customers' as TabType, label: '2.- Clientes Alarmas', icon: Users },
+    { id: 'services' as TabType, label: '3.- Servicios', icon: Wrench },
+    { id: 'technicians' as TabType, label: '4.- Técnicos', icon: UserCheck },
+    { id: 'credit' as TabType, label: '5.- Buró', icon: CreditCard },
+    { id: 'aging' as TabType, label: '6.- Mora', icon: Clock },
+    { id: 'financial' as TabType, label: '7.- Financiero', icon: TrendingUp },
+    { id: 'inventory' as TabType, label: '8.- Inventario', icon: Package },
     { id: 'executive' as TabType, label: 'Ejecutivo', icon: LayoutDashboard },
-    { id: 'customers' as TabType, label: 'Clientes', icon: Users },
-    { id: 'portfolio' as TabType, label: 'Cartera', icon: Briefcase },
-    { id: 'credit' as TabType, label: 'Buró', icon: CreditCard },
-    { id: 'services' as TabType, label: 'Servicios', icon: Wrench },
-    { id: 'technicians' as TabType, label: 'Técnicos', icon: UserCheck },
-    { id: 'financial' as TabType, label: 'Financiero', icon: TrendingUp },
-    { id: 'inventory' as TabType, label: 'Inventario', icon: Package },
-    { id: 'aging' as TabType, label: 'Mora', icon: Clock },
-    { id: 'trends' as TabType, label: 'Tendencias', icon: Calendar }
+    { id: 'trends' as TabType, label: 'Metas', icon: Calendar }
   ];
 
   const renderContent = () => {

@@ -3,8 +3,11 @@ export const SYSTEM_TYPES = [
   { value: 'cctv', label: 'CCTV' },
   { value: 'control_acceso', label: 'Control de Acceso' },
   { value: 'control_asistencia', label: 'Control de Asistencia' },
-  { value: 'video_portero', label: 'Video Portero' },
-  { value: 'red', label: 'Red' }
+  { value: 'domotica', label: 'Domótica' },
+  { value: 'gps_personal', label: 'GPS Personal' },
+  { value: 'gps_vehicular', label: 'GPS Vehicular' },
+  { value: 'red', label: 'Red' },
+  { value: 'video_portero', label: 'Video Portero' }
 ] as const;
 
 export type SystemType = typeof SYSTEM_TYPES[number]['value'];

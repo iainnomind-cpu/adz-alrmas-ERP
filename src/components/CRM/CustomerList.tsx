@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { CustomerProfile360 } from './CustomerProfile360';
 import { NewCustomerForm } from './NewCustomerForm';
+import { formatCustomerAccountNumber } from '../../utils/customerAccountNumber';
 import type { Database } from '../../lib/database.types';
 
 type Customer = Database['public']['Tables']['customers']['Row'] & {
@@ -890,7 +891,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="font-semibold text-sm text-gray-500">
-                            #{customer.account_number || 'S/N'}
+                            #{formatCustomerAccountNumber(customer.account_number, customer.system_type)}
                           </span>
                           <h3 className="font-bold text-lg truncate">
                             {customer.business_name || customer.name}
