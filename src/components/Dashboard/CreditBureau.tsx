@@ -18,7 +18,7 @@ interface CustomerCredit {
 export function CreditBureau() {
   const [customers, setCustomers] = useState<CustomerCredit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'puntual' | '15_dias' | 'moroso'>('all');
+  const [filter, setFilter] = useState<'all' | 'puntual' | 'retrasado' | '15_dias' | 'moroso'>('all');
 
   useEffect(() => {
     loadCreditData();
@@ -66,7 +66,7 @@ export function CreditBureau() {
 
       if (filter === 'puntual') {
         filtered = filtered.filter(c => c.maxDaysOverdue === 0);
-      } else if (filter === '15_dias') {
+      } else if (filter === 'retrasado' || filter === '15_dias') {
         filtered = filtered.filter(c => c.maxDaysOverdue > 0 && c.maxDaysOverdue <= 15);
       } else if (filter === 'moroso') {
         filtered = filtered.filter(c => c.maxDaysOverdue > 15);
@@ -125,19 +125,19 @@ export function CreditBureau() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {(['all', 'puntual', '15_dias', 'moroso'] as const).map((type) => (
+        {(['all', 'puntual', 'retrasado', 'moroso'] as const).map((type) => (
           <button
             key={type}
             onClick={() => setFilter(type)}
             className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-              filter === type
+              filter === type || (type === 'retrasado' && filter === '15_dias')
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
             {type === 'all' ? 'Todos' :
              type === 'puntual' ? 'Puntuales' :
-             type === '15_dias' ? 'Retrasados' :
+             type === 'retrasado' ? 'Retrasados' :
              'Morosos'}
           </button>
         ))}

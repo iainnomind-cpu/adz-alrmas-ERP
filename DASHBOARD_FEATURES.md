@@ -20,10 +20,9 @@ KPIs principales en tiempo real:
 
 ### 2. **Análisis de Clientes** (CustomerAnalytics)
 Parametría completa de clientes con distribución por:
-- Tipo de cliente (casa, comercio, banco)
+- Tipo de propiedad (casa, comercio, banco, rancho, etc.)
 - Tecnología de comunicación (teléfono, celular, dual)
-- Tipo de propiedad
-- Clasificación de crédito
+- Buró (Puntual, Retrasado, Moroso)
 - Tipo de cuenta (individual, consolidado)
 - Ciclo de facturación
 - Estado del cliente

@@ -55,7 +55,7 @@ interface CustomerFilters {
   billingCycle: 'all' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
   monitoringPlan: 'all' | 'plus_clasico' | 'plus_premium' | 'premium_com_15' | 'premium_com_20' | 'plus_com_15' | 'plus_com_20' | 'medical_premium' | 'boton_panico';
   communicationTech: 'all' | 'telefono' | 'ip' | 'dual' | 'celular' | 'radio';
-  creditClassification: 'all' | 'puntual' | '15_dias' | '30_dias' | 'moroso';
+  creditClassification: 'all' | 'puntual' | 'retrasado' | '15_dias' | '30_dias' | 'moroso';
   neighborhood: string;
   city: string;
   state: string;
@@ -231,7 +231,11 @@ export function CustomerList({ systemType }: CustomerListProps) {
       }
 
       if (filters.creditClassification !== 'all') {
-        query = query.eq('credit_classification', filters.creditClassification);
+        if (filters.creditClassification === 'retrasado') {
+          query = query.in('credit_classification', ['retrasado', '15_dias', '30_dias']);
+        } else {
+          query = query.eq('credit_classification', filters.creditClassification);
+        }
       }
 
       if (filters.neighborhood) {
@@ -667,7 +671,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Clasificación de Crédito</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Buró</label>
                 <select
                   value={filters.creditClassification}
                   onChange={(e) => setFilters({ ...filters, creditClassification: e.target.value as any })}
@@ -675,8 +679,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
                 >
                   <option value="all">Todas</option>
                   <option value="puntual">Puntual</option>
-                  <option value="15_dias">15 días</option>
-                  <option value="30_dias">30 días</option>
+                  <option value="retrasado">Retrasado</option>
                   <option value="moroso">Moroso</option>
                 </select>
               </div>

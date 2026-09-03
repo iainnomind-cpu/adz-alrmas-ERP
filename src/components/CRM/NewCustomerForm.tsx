@@ -396,16 +396,15 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Clasificación de Crédito
+                  Buró
                 </label>
                 <select
-                  value={formData.credit_classification || 'puntual'}
+                  value={formData.credit_classification === '15_dias' || formData.credit_classification === '30_dias' ? 'retrasado' : (formData.credit_classification || 'puntual')}
                   onChange={(e) => handleChange('credit_classification', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="puntual">Puntual</option>
-                  <option value="15_dias">15 Días</option>
-                  <option value="30_dias">30 Días</option>
+                  <option value="retrasado">Retrasado</option>
                   <option value="moroso">Moroso</option>
                 </select>
               </div>

@@ -190,8 +190,9 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
   const getCreditBadge = (classification: string) => {
     switch (classification) {
       case 'puntual': return { color: 'bg-green-100 text-green-800', label: 'Puntual' };
-      case '15_dias': return { color: 'bg-yellow-100 text-yellow-800', label: '15 Días' };
-      case '30_dias': return { color: 'bg-orange-100 text-orange-800', label: '30 Días' };
+      case 'retrasado':
+      case '15_dias':
+      case '30_dias': return { color: 'bg-yellow-100 text-yellow-800', label: 'Retrasado' };
       case 'moroso': return { color: 'bg-red-100 text-red-800', label: 'Moroso' };
       default: return { color: 'bg-gray-100 text-gray-800', label: classification };
     }
@@ -325,7 +326,7 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                   <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4">
                     <div className="flex items-center gap-2 text-blue-600 mb-2">
                       <CreditCard className="w-5 h-5" />
-                      <span className="text-sm font-medium">Clasificación</span>
+                      <span className="text-sm font-medium">Buró</span>
                     </div>
                     <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${getCreditBadge(customer.credit_classification).color}`}>
                       {getCreditBadge(customer.credit_classification).label}

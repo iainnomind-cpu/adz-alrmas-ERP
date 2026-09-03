@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
+  DollarSign,
   Clock,
   AlertTriangle,
   Wrench,
@@ -38,6 +39,7 @@ interface PriorityBreakdown {
 }
 
 interface KPIs {
+  totalRevenue: number;
   pendingRevenue: number;
   pendingCount: number;
   overdueRevenue: number;
@@ -208,6 +210,8 @@ export function ExecutiveDashboard() {
         ? sortedProducts[0] 
         : { name: priceList[0]?.name || 'Sensor Inalámbrico PIR', quantity: 18 };
 
+      const paidInvoices = invoices.filter(i => i.status === 'paid');
+      const totalRevenue = paidInvoices.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
       const overdueInvoices = invoices.filter(i => i.status === 'overdue');
       const pendingInvoices = invoices.filter(i => i.status === 'pending');
       const avgOverdue = overdueInvoices.length > 0
@@ -253,6 +257,7 @@ export function ExecutiveDashboard() {
       const totalVisitsRevenue = technicianVisitsRevenue + installationMaterialsCost + securityDevicesRevenue;
 
       setKpis({
+        totalRevenue,
         pendingRevenue: pendingInvoices.reduce((sum, i) => sum + i.total_amount, 0),
         pendingCount: pendingInvoices.length,
         overdueRevenue: overdueInvoices.reduce((sum, i) => sum + i.total_amount, 0),
@@ -300,7 +305,7 @@ export function ExecutiveDashboard() {
 
   if (!kpis) return null;
 
-  // 15 Recuadros de Colores
+  // Recuadros de Colores
   const kpiCards = [
     {
       number: '1',
@@ -436,6 +441,14 @@ export function ExecutiveDashboard() {
       icon: Video,
       color: 'from-amber-600 to-yellow-800',
       iconBg: 'bg-amber-100 text-amber-700'
+    },
+    {
+      title: 'Ingresos Cobrados',
+      value: `$${kpis.totalRevenue.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+      subtitle: 'Período actual',
+      icon: DollarSign,
+      color: 'from-emerald-500 to-green-600',
+      iconBg: 'bg-emerald-100 text-emerald-600'
     }
   ];
 
@@ -448,7 +461,7 @@ export function ExecutiveDashboard() {
             Indicadores Clave del Negocio
           </h3>
           <span className="text-xs font-medium px-2.5 py-0.5 bg-gray-100 text-gray-600 rounded-full border border-gray-200">
-            15 Métricas Principales
+            {kpiCards.length} Métricas Principales
           </span>
         </div>
 
@@ -457,16 +470,18 @@ export function ExecutiveDashboard() {
             const Icon = card.icon;
             return (
               <div
-                key={card.number}
+                key={card.title}
                 className={`relative overflow-hidden bg-gradient-to-br ${card.color} rounded-2xl p-4 text-white shadow-md hover:shadow-xl transition-all duration-200 flex flex-col justify-between group min-h-[135px]`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className={`p-2 ${card.iconBg} rounded-xl bg-white/20 backdrop-blur-sm shadow-inner group-hover:scale-105 transition-transform`}>
                     <Icon className="w-5 h-5 text-white" />
                   </div>
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/25 text-white backdrop-blur-sm border border-white/20">
-                    #{card.number}
-                  </span>
+                  {card.number && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/25 text-white backdrop-blur-sm border border-white/20">
+                      #{card.number}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-white/90 line-clamp-1 mb-0.5">
