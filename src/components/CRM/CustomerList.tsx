@@ -2,12 +2,13 @@ import { useEffect, useState, useRef, useCallback, memo } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   Users, Building2, Home, Landmark, Phone, MapPin, Eye, Plus, Search,
-  Filter, X, Calendar, CreditCard, Wifi, AlertCircle, TrendingUp, Star, Link
+  Filter, X, Calendar, CreditCard, Wifi, AlertCircle, TrendingUp, Star, Link, Database
 } from 'lucide-react';
 import { CustomerProfile360 } from './CustomerProfile360';
 import { NewCustomerForm } from './NewCustomerForm';
+import { CustomerGeneratorModal } from './CustomerGeneratorModal';
 import { formatCustomerAccountNumber } from '../../utils/customerAccountNumber';
-import type { Database } from '../../lib/database.types';
+import type { Database as DB } from '../../lib/database.types';
 
 type Customer = Database['public']['Tables']['customers']['Row'] & {
   cards_count?: number;
@@ -78,6 +79,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
   const [page, setPage] = useState(0);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [showGeneratorModal, setShowGeneratorModal] = useState(false);
   const [customerToEdit, setCustomerToEdit] = useState<Customer | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -448,13 +450,25 @@ export function CustomerList({ systemType }: CustomerListProps) {
             <Users className="w-7 h-7 text-blue-600" />
             Clientes ({customers.length})
           </h2>
-          <button
-            onClick={() => setShowNewCustomerForm(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium"
-          >
-            <Plus className="w-5 h-5" />
-            Nuevo Cliente
-          </button>
+          <div className="flex items-center gap-2">
+            {systemType && !systemType.toLowerCase().includes('alarm') && (
+              <button
+                onClick={() => setShowGeneratorModal(true)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-medium"
+                title="Generar base de datos de clientes con numeración progresiva"
+              >
+                <Database className="w-5 h-5" />
+                Generar BD
+              </button>
+            )}
+            <button
+              onClick={() => setShowNewCustomerForm(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium"
+            >
+              <Plus className="w-5 h-5" />
+              Nuevo Cliente
+            </button>
+          </div>
         </div>
 
         <SearchBar
@@ -1092,6 +1106,17 @@ export function CustomerList({ systemType }: CustomerListProps) {
           onSuccess={() => {
             setShowNewCustomerForm(false);
             setCustomerToEdit(undefined);
+            loadCustomers(0, true);
+          }}
+        />
+      )}
+
+      {showGeneratorModal && (
+        <CustomerGeneratorModal
+          initialSystemType={systemType}
+          onClose={() => setShowGeneratorModal(false)}
+          onSuccess={() => {
+            setShowGeneratorModal(false);
             loadCustomers(0, true);
           }}
         />
