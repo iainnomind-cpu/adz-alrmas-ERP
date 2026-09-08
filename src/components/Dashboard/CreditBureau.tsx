@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { CreditCard, CheckCircle2, Clock, AlertTriangle, Phone } from 'lucide-react';
+import { CheckCircle2, Clock, AlertTriangle, Phone, Mail } from 'lucide-react';
+import { DebtReminderModal } from './DebtReminderModal';
 
 interface CustomerCredit {
   id: string;
   name: string;
   phone: string | null;
+  email: string | null;
   creditClassification: string;
   totalInvoices: number;
   totalPaid: number;
@@ -18,7 +20,8 @@ interface CustomerCredit {
 export function CreditBureau() {
   const [customers, setCustomers] = useState<CustomerCredit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'puntual' | 'retrasado' | '15_dias' | 'moroso'>('all');
+  const [filter, setFilter] = useState<'all' | 'puntual' | 'retrasado' | 'en_mora' | '15_dias' | 'moroso'>('all');
+  const [reminderCustomer, setReminderCustomer] = useState<CustomerCredit | null>(null);
 
   useEffect(() => {
     loadCreditData();
@@ -27,7 +30,7 @@ export function CreditBureau() {
   const loadCreditData = async () => {
     try {
       const [customersData, invoicesData] = await Promise.all([
-        supabase.from('customers').select('id, name, phone, credit_classification'),
+        supabase.from('customers').select('id, name, phone, email, credit_classification'),
         supabase.from('invoices').select('customer_id, total_amount, status, days_overdue').neq('status', 'cancelled')
       ]);
 
@@ -38,6 +41,7 @@ export function CreditBureau() {
           id: c.id,
           name: c.name,
           phone: c.phone,
+          email: c.email || null,
           creditClassification: c.credit_classification,
           totalInvoices: 0,
           totalPaid: 0,
@@ -68,8 +72,10 @@ export function CreditBureau() {
         filtered = filtered.filter(c => c.maxDaysOverdue === 0);
       } else if (filter === 'retrasado' || filter === '15_dias') {
         filtered = filtered.filter(c => c.maxDaysOverdue > 0 && c.maxDaysOverdue <= 15);
+      } else if (filter === 'en_mora') {
+        filtered = filtered.filter(c => c.maxDaysOverdue > 15 && c.maxDaysOverdue <= 30);
       } else if (filter === 'moroso') {
-        filtered = filtered.filter(c => c.maxDaysOverdue > 15);
+        filtered = filtered.filter(c => c.maxDaysOverdue > 30);
       }
 
       filtered.sort((a, b) => b.maxDaysOverdue - a.maxDaysOverdue);
@@ -89,13 +95,15 @@ export function CreditBureau() {
     );
   }
 
-  const puntualCount = customers.filter(c => c.maxDaysOverdue === 0).length;
+  const puntualCount  = customers.filter(c => c.maxDaysOverdue === 0).length;
   const retrasadoCount = customers.filter(c => c.maxDaysOverdue > 0 && c.maxDaysOverdue <= 15).length;
-  const morosoCount = customers.filter(c => c.maxDaysOverdue > 15).length;
+  const enMoraCount   = customers.filter(c => c.maxDaysOverdue > 15 && c.maxDaysOverdue <= 30).length;
+  const morosoCount   = customers.filter(c => c.maxDaysOverdue > 30).length;
 
   return (
+    <>
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between mb-4">
             <CheckCircle2 className="w-8 h-8" />
@@ -114,18 +122,27 @@ export function CreditBureau() {
           <p className="text-sm opacity-75 mt-2">1-15 días</p>
         </div>
 
+        <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <AlertTriangle className="w-8 h-8" />
+          </div>
+          <p className="text-sm opacity-90 mb-1">En Mora</p>
+          <p className="text-4xl font-bold">{enMoraCount}</p>
+          <p className="text-sm opacity-75 mt-2">16-30 días</p>
+        </div>
+
         <div className="bg-gradient-to-br from-red-500 to-pink-500 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between mb-4">
             <AlertTriangle className="w-8 h-8" />
           </div>
           <p className="text-sm opacity-90 mb-1">Morosos</p>
           <p className="text-4xl font-bold">{morosoCount}</p>
-          <p className="text-sm opacity-75 mt-2">Más de 15 días</p>
+          <p className="text-sm opacity-75 mt-2">Más de 30 días</p>
         </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {(['all', 'puntual', 'retrasado', 'moroso'] as const).map((type) => (
+        {(['all', 'puntual', 'retrasado', 'en_mora', 'moroso'] as const).map((type) => (
           <button
             key={type}
             onClick={() => setFilter(type)}
@@ -135,9 +152,10 @@ export function CreditBureau() {
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            {type === 'all' ? 'Todos' :
-             type === 'puntual' ? 'Puntuales' :
-             type === 'retrasado' ? 'Retrasados' :
+            {type === 'all'      ? 'Todos' :
+             type === 'puntual'  ? 'Puntuales' :
+             type === 'retrasado'? 'Retrasados' :
+             type === 'en_mora'  ? 'En mora' :
              'Morosos'}
           </button>
         ))}
@@ -155,6 +173,7 @@ export function CreditBureau() {
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Pendiente</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Vencido</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Días Mora</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -174,12 +193,14 @@ export function CreditBureau() {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                      customer.maxDaysOverdue === 0 ? 'bg-green-100 text-green-800' :
-                      customer.maxDaysOverdue <= 15 ? 'bg-yellow-100 text-yellow-800' :
+                      customer.maxDaysOverdue === 0        ? 'bg-green-100 text-green-800' :
+                      customer.maxDaysOverdue <= 15        ? 'bg-yellow-100 text-yellow-800' :
+                      customer.maxDaysOverdue <= 30        ? 'bg-orange-100 text-orange-800' :
                       'bg-red-100 text-red-800'
                     }`}>
-                      {customer.maxDaysOverdue === 0 ? 'Puntual' :
-                       customer.maxDaysOverdue <= 15 ? 'Retrasado' :
+                      {customer.maxDaysOverdue === 0  ? 'Puntual' :
+                       customer.maxDaysOverdue <= 15  ? 'Retrasado' :
+                       customer.maxDaysOverdue <= 30  ? 'En mora' :
                        'Moroso'}
                     </span>
                   </td>
@@ -208,13 +229,28 @@ export function CreditBureau() {
                   <td className="px-6 py-4 text-center">
                     {customer.maxDaysOverdue > 0 ? (
                       <span className={`inline-flex px-3 py-1 rounded-full text-sm font-bold ${
-                        customer.maxDaysOverdue <= 15 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                        customer.maxDaysOverdue <= 15 ? 'bg-yellow-100 text-yellow-800' :
+                        customer.maxDaysOverdue <= 30 ? 'bg-orange-100 text-orange-800' :
+                        'bg-red-100 text-red-800'
                       }`}>
                         {customer.maxDaysOverdue}
                       </span>
                     ) : (
                       <span className="text-gray-400">-</span>
                     )}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <button
+                      onClick={() => setReminderCustomer(customer)}
+                      title="Enviar recordatorio de adeudo por email"
+                      className={`inline-flex items-center justify-center p-2 rounded-lg transition-all group ${
+                        customer.pendingAmount > 0 || customer.overdueAmount > 0
+                          ? 'bg-orange-50 hover:bg-orange-100 text-orange-600 hover:text-orange-700 border border-orange-200 hover:border-orange-300'
+                          : 'bg-gray-50 hover:bg-blue-50 text-gray-400 hover:text-blue-500 border border-gray-200 hover:border-blue-200'
+                      }`}
+                    >
+                      <Mail className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -223,5 +259,22 @@ export function CreditBureau() {
         </div>
       </div>
     </div>
+
+    {/* Debt Reminder Modal */}
+    {reminderCustomer && (
+      <DebtReminderModal
+        customer={{
+          id: reminderCustomer.id,
+          name: reminderCustomer.name,
+          email: reminderCustomer.email,
+          pendingAmount: reminderCustomer.pendingAmount,
+          overdueAmount: reminderCustomer.overdueAmount,
+          maxDaysOverdue: reminderCustomer.maxDaysOverdue,
+          totalInvoices: reminderCustomer.totalInvoices,
+        }}
+        onClose={() => setReminderCustomer(null)}
+      />
+    )}
+    </>
   );
 }
