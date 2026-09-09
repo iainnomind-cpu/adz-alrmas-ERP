@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { MapPin, Package, Search, ArrowRightLeft } from 'lucide-react';
 import { TransferForm } from './TransferForm';
 
+import { getItemNetPrice } from '../Dashboard/InventoryReport';
+
 interface Location {
     id: string;
     name: string;
@@ -29,7 +31,7 @@ export function LocationStockView() {
     const [filterLocation, setFilterLocation] = useState<string>('all');
     const [viewMode, setViewMode] = useState<'units' | 'cost' | 'sale'>('units');
 
-    const formatCurrency = (val: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
+    const formatCurrency = (val: number) => `$${(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     useEffect(() => {
         loadData();
@@ -49,7 +51,7 @@ export function LocationStockView() {
 
             // Load all products with stock
             const { data: products } = await (supabase.from('price_list') as any)
-                .select('id, code, name, brand, stock_quantity, cost, base_price_mxn')
+                .select('id, code, name, brand, stock_quantity, cost, base_price_mxn, has_tax, tax_rate, price_with_tax_mxn')
                 .eq('is_active', true)
                 .order('name');
 
@@ -73,7 +75,7 @@ export function LocationStockView() {
                     product_code: p.code || '',
                     brand: p.brand,
                     cost: parseFloat(p.cost) || 0,
-                    price: parseFloat(p.base_price_mxn) || 0,
+                    price: getItemNetPrice(p),
                     stocks,
                     total,
                 };

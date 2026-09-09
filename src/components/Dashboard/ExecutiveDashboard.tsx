@@ -65,7 +65,8 @@ interface KPIs {
   totalVisitsRevenue: number;
   pausedOrders: number;
   cancelledOrders: number;
-  warrantyOrders: number;
+  garantiaCompletedOrders: number;
+  garantiaPendingOrders: number;
   pendingSeriesWE: PriorityBreakdown;
   pendingSeriesADZ: PriorityBreakdown;
   topProduct: { name: string; quantity: number };
@@ -150,11 +151,21 @@ export function ExecutiveDashboard() {
 
       const pausedOrders = serviceOrders.filter(s => s.status === 'paused' || s.status === 'pausada' || s.status === 'en_espera').length;
       const cancelledOrders = serviceOrders.filter(s => s.status === 'cancelled' || s.status === 'cancelada').length;
-      const warrantyOrders = serviceOrders.filter(s => {
+      
+      const warrantyOrdersList = serviceOrders.filter(s => {
         const st = (s.service_type || '').toLowerCase();
         const desc = (s.description || '').toLowerCase();
         return st === 'warranty' || st === 'garantia' || st === 'garantía' || desc.includes('garant');
-      }).length;
+      });
+
+      const garantiaCompletedOrders = warrantyOrdersList.filter(s =>
+        s.status === 'completed' || s.status === 'closed' || s.status === 'atendida'
+      ).length;
+
+      const garantiaPendingOrders = warrantyOrdersList.filter(s =>
+        s.status !== 'completed' && s.status !== 'closed' && s.status !== 'atendida' &&
+        s.status !== 'cancelled' && s.status !== 'cancelada'
+      ).length;
 
       // Órdenes pendientes de atender (Serie WE vs Serie ADZ por Prioridad)
       const pendingOrders = serviceOrders.filter(s => 
@@ -283,7 +294,8 @@ export function ExecutiveDashboard() {
         totalVisitsRevenue,
         pausedOrders,
         cancelledOrders,
-        warrantyOrders,
+        garantiaCompletedOrders,
+        garantiaPendingOrders,
         pendingSeriesWE,
         pendingSeriesADZ,
         topProduct
@@ -595,8 +607,8 @@ export function ExecutiveDashboard() {
               </span>
             </div>
 
-            {/* Fila 1: Estatus de Órdenes Atendidas, Pausadas, Canceladas, Garantía */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3.5">
+            {/* Fila 1: Estatus de Órdenes Atendidas, Pausadas, Canceladas, Garantías */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3.5">
               <div className="p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
                 <div className="flex items-center justify-center gap-1 text-emerald-600 mb-0.5">
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -624,13 +636,22 @@ export function ExecutiveDashboard() {
                 <p className="text-[10px] text-rose-600">Anuladas</p>
               </div>
 
-              <div className="p-2.5 bg-blue-50 border border-blue-100 rounded-xl text-center">
-                <div className="flex items-center justify-center gap-1 text-blue-600 mb-0.5">
+              <div className="p-2.5 bg-teal-50 border border-teal-100 rounded-xl text-center">
+                <div className="flex items-center justify-center gap-1 text-teal-600 mb-0.5">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-semibold">Garantía</span>
+                  <span className="text-[11px] font-semibold">Gar. Atendidas</span>
                 </div>
-                <p className="text-xl font-extrabold text-blue-700">{kpis.warrantyOrders}</p>
-                <p className="text-[10px] text-blue-600">Por póliza</p>
+                <p className="text-xl font-extrabold text-teal-700">{kpis.garantiaCompletedOrders}</p>
+                <p className="text-[10px] text-teal-600">Resueltas</p>
+              </div>
+
+              <div className="p-2.5 bg-orange-50 border border-orange-100 rounded-xl text-center">
+                <div className="flex items-center justify-center gap-1 text-orange-600 mb-0.5">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span className="text-[11px] font-semibold">Gar. Pendientes</span>
+                </div>
+                <p className="text-xl font-extrabold text-orange-700">{kpis.garantiaPendingOrders}</p>
+                <p className="text-[10px] text-orange-600">En proceso</p>
               </div>
             </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, type PriceListItem } from '../../lib/supabase';
+import { getItemNetPrice } from '../Dashboard/InventoryReport';
 import { PriceItemForm } from './PriceItemForm';
 import { PriceCalculator } from './PriceCalculator';
 import {
@@ -464,7 +465,7 @@ export function PriceListManager() {
                                         <td className="px-2 py-2 text-right whitespace-nowrap">
                                             <div className="flex flex-col items-end">
                                                <span className="font-bold text-sm text-gray-900">
-                                                  {formatCurrency(item.price_with_tax_mxn || item.base_price_mxn)}
+                                                  {formatCurrency(getItemNetPrice(item))}
                                                </span>
                                                <span className={`text-[9px] font-medium px-1 py-0 rounded ${item.has_tax ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
                                                   {item.has_tax ? `IVA ${item.tax_rate}%` : 'Sin IVA'}
