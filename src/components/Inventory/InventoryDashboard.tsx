@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Package, DollarSign, TrendingUp, Users, Activity, BarChart3 } from 'lucide-react';
 
+import { getItemNetPrice } from '../Dashboard/InventoryReport';
+
 interface DashboardStats {
   totalUnits: number;
   totalCostValue: number;
@@ -18,14 +20,14 @@ export function InventoryDashboard() {
     loadDashboardData();
   }, []);
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
+  const formatCurrency = (val: number) => `$${(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
       // 1. Cargar catálogo de precios para cruzar
       const { data: products } = await (supabase.from('price_list') as any)
-        .select('id, name, cost, base_price_mxn');
+        .select('id, name, cost, base_price_mxn, has_tax, tax_rate, price_with_tax_mxn');
       
       const productMap: Record<string, any> = {};
       (products || []).forEach((p: any) => {
@@ -46,7 +48,7 @@ export function InventoryDashboard() {
         if (p && qty > 0) {
           totalUnits += qty;
           totalCostValue += qty * (parseFloat(p.cost) || 0);
-          totalSaleValue += qty * (parseFloat(p.base_price_mxn) || 0);
+          totalSaleValue += qty * getItemNetPrice(p);
         }
       });
 

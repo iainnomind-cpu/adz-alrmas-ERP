@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Package, TrendingDown, AlertTriangle, DollarSign } from 'lucide-react';
 
+export function getItemNetPrice(item: any): number {
+  if (item.price_with_tax_mxn !== undefined && item.price_with_tax_mxn !== null && Number(item.price_with_tax_mxn) > 0) {
+    return Number(item.price_with_tax_mxn);
+  }
+  const base = Number(item.base_price_mxn) || 0;
+  const hasTax = item.has_tax ?? true;
+  if (!hasTax) return base;
+  const taxRate = item.tax_rate !== undefined && item.tax_rate !== null ? Number(item.tax_rate) : 16;
+  return base * (1 + taxRate / 100);
+}
+
 export function InventoryReport() {
   const [inventory, setInventory] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -9,6 +20,8 @@ export function InventoryReport() {
   useEffect(() => {
     loadInventory();
   }, []);
+
+  const formatCurrency = (val: number) => `$${(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const loadInventory = async () => {
     try {
@@ -34,9 +47,9 @@ export function InventoryReport() {
       physicalItems.forEach(item => {
         const stock = item.stock_quantity || 0;
         const minStock = item.min_stock_level || 5;
-        const cost = item.base_price_mxn || 0;
+        const netPrice = getItemNetPrice(item);
         
-        totalValue += (stock * cost);
+        totalValue += (stock * netPrice);
 
         if (stock === 0) {
           outOfStock++;
@@ -76,8 +89,8 @@ export function InventoryReport() {
         </div>
         <div className="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-6 text-white">
           <DollarSign className="w-8 h-8 mb-4" />
-          <p className="text-sm opacity-90">Valor Total (Stock)</p>
-          <p className="text-4xl font-bold">${inventory.totalValue.toFixed(0)}</p>
+          <p className="text-sm opacity-90">Valor Total de Stock (precio de venta)</p>
+          <p className="text-4xl font-bold">{formatCurrency(inventory.totalValue)}</p>
         </div>
         <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-6 text-white">
           <TrendingDown className="w-8 h-8 mb-4" />
@@ -99,7 +112,7 @@ export function InventoryReport() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Stock</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Mínimo</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Costo/Base (MXN)</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Neto (MXN)</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor Total</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
               </tr>
@@ -108,8 +121,8 @@ export function InventoryReport() {
               {inventory.items.map((item: any) => {
                 const stock = item.stock_quantity || 0;
                 const minStock = item.min_stock_level || 5;
-                const cost = item.base_price_mxn || 0;
-                const value = stock * cost;
+                const netPrice = getItemNetPrice(item);
+                const value = stock * netPrice;
                 const status = stock === 0 ? 'out' : stock < minStock ? 'low' : 'ok';
                 return (
                   <tr key={item.id} className="hover:bg-gray-50">
@@ -119,8 +132,8 @@ export function InventoryReport() {
                     </td>
                     <td className="px-6 py-4 text-center font-semibold">{stock}</td>
                     <td className="px-6 py-4 text-center text-gray-600">{minStock}</td>
-                    <td className="px-6 py-4 text-right">${cost.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-right font-semibold">${value.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-right">{formatCurrency(netPrice)}</td>
+                    <td className="px-6 py-4 text-right font-semibold">{formatCurrency(value)}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         status === 'out' ? 'bg-red-100 text-red-800' :
