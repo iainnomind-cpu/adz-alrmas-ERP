@@ -96,12 +96,15 @@ Estado del inventario:
 
 ### 9. **Análisis de Mora** (AgingReport)
 Aging de cartera detallado:
-- Distribución por buckets:
+- Distribución por buckets (7 rangos):
   - Actual (no vencido)
-  - 0-30 días
+  - 3 días
+  - 7 días
+  - 15 días
+  - 30 días
   - 31-60 días
   - 61-90 días
-  - 90+ días
+  - +90 días
 - Análisis por cliente con montos en cada bucket
 - Totales consolidados
 - Visualización con colores por nivel de riesgo
