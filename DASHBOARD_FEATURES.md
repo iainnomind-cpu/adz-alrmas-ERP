@@ -109,14 +109,15 @@ Aging de cartera detallado:
 - Totales consolidados
 - Visualización con colores por nivel de riesgo
 
-### 10. **Tendencias Temporales** (TemporalTrends)
+### 10. **Tendencias Temporales / Metas** (TemporalTrends)
 Análisis de estacionalidad y tendencias:
-- Servicios por mes (últimos 12 meses)
-- Ingresos mensuales
-- Nuevos clientes por mes
-- Costo promedio por servicio por mes
-- Gráficas de barras comparativas
-- Tabla resumen con todos los indicadores
+- **Bitácora Histórica por Año Calendario**: Recuadros clickeables por cada año (ej. 2026 en curso, 2025/2024 cerrados). Al hacer clic en un año cerrado, se despliega la bitácora mensual completa de auditoría e indicadores de ese período.
+- Clasificación de ingresos mensuales por rubro (valores netos con IVA):
+  - 🛠️ **Servicios**
+  - 📦 **Materiales de Instalación**
+  - 📱 **Venta de Dispositivos**, desglosada por 9 categorías: Alarmas, CCTV, Control de Acceso, Control de Asistencia, Domótica, GPS Personal, GPS Vehicular, Red, Video Porteros.
+- Selector de filtros interactivo para la gráfica de ingresos por rubro/dispositivo.
+- Tabla detallada con pestañas de vistas: *Resumen General*, *Desglose por Rubros* y *Desglose de 9 Dispositivos*.
 
 ## Características Técnicas
 
