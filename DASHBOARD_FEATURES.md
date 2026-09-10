@@ -96,24 +96,28 @@ Estado del inventario:
 
 ### 9. **Análisis de Mora** (AgingReport)
 Aging de cartera detallado:
-- Distribución por buckets:
+- Distribución por buckets (7 rangos):
   - Actual (no vencido)
-  - 0-30 días
+  - 3 días
+  - 7 días
+  - 15 días
+  - 30 días
   - 31-60 días
   - 61-90 días
-  - 90+ días
+  - +90 días
 - Análisis por cliente con montos en cada bucket
 - Totales consolidados
 - Visualización con colores por nivel de riesgo
 
-### 10. **Tendencias Temporales** (TemporalTrends)
+### 10. **Tendencias Temporales / Metas** (TemporalTrends)
 Análisis de estacionalidad y tendencias:
-- Servicios por mes (últimos 12 meses)
-- Ingresos mensuales
-- Nuevos clientes por mes
-- Costo promedio por servicio por mes
-- Gráficas de barras comparativas
-- Tabla resumen con todos los indicadores
+- **Bitácora Histórica por Año Calendario**: Recuadros clickeables por cada año (ej. 2026 en curso, 2025/2024 cerrados). Al hacer clic en un año cerrado, se despliega la bitácora mensual completa de auditoría e indicadores de ese período.
+- Clasificación de ingresos mensuales por rubro (valores netos con IVA):
+  - 🛠️ **Servicios**
+  - 📦 **Materiales de Instalación**
+  - 📱 **Venta de Dispositivos**, desglosada por 9 categorías: Alarmas, CCTV, Control de Acceso, Control de Asistencia, Domótica, GPS Personal, GPS Vehicular, Red, Video Porteros.
+- Selector de filtros interactivo para la gráfica de ingresos por rubro/dispositivo.
+- Tabla detallada con pestañas de vistas: *Resumen General*, *Desglose por Rubros* y *Desglose de 9 Dispositivos*.
 
 ## Características Técnicas
 
