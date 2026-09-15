@@ -28,6 +28,7 @@ export interface DigitalCard {
     validUntil: string | null;
   };
   is_active: boolean;
+  inactive_reason: string | null;
   block_reason: string | null;
   created_at: string;
   updated_at: string;

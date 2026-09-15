@@ -4,6 +4,7 @@ import { AddMaterialsForm } from './AddMaterialsForm';
 import { ServiceOrderActions } from './ServiceOrderActions';
 import { CompleteServiceForm } from './CompleteServiceForm';
 import { ServiceOrderReport } from './ServiceOrderReport';
+import { WarrantyFollowupPanel } from './WarrantyFollowupPanel';
 import { ServiceOrderPhotos } from './ServiceOrderPhotos';
 import {
   X,
@@ -350,6 +351,10 @@ export function ServiceOrderDetail({ orderId, onClose, onUpdate }: ServiceOrderD
                       <FileText className="w-5 h-5" />
                       Ver Reporte de Servicio
                     </button>
+                  )}
+
+                  {order.is_warranty && (order.status === 'completed' || order.status === 'cerrada' || order.status === 'paid' || order.status === 'invoiced') && (
+                    <WarrantyFollowupPanel order={order} onUpdate={() => { loadOrderData(); onUpdate(); }} />
                   )}
 
                   {order.full_folio && (

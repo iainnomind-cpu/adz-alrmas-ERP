@@ -269,18 +269,38 @@ export function InvoiceList() {
     }
   };
 
+  
+  const getBorderColor = (status: string): string => {
+    switch (status) {
+      case 'paid':
+        return 'border-l-green-500';
+      case 'partial':
+        return 'border-l-blue-500';
+      case 'pending':
+        return 'border-l-[#eaff00]';
+      case 'overdue':
+        return 'border-l-red-500';
+      case 'cancelled':
+        return 'border-l-gray-500';
+      default:
+        return 'border-l-[#eaff00]';
+    }
+  };
+
   const getStatusColor = (status: string): string => {
     switch (status) {
       case 'paid':
-        return 'bg-green-100 text-green-800';
-      case 'overdue':
-        return 'bg-red-100 text-red-800';
+        return 'bg-green-100 text-green-800'; // Color 1
       case 'partial':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-blue-100 text-blue-800'; // Color 2
+      case 'pending':
+        return 'bg-[#eaff00] text-black font-semibold'; // Color 3 (Amarillo fosforescente)
+      case 'overdue':
+        return 'bg-red-100 text-red-800'; // Color 4
       case 'cancelled':
         return 'bg-gray-100 text-gray-800';
       default:
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-[#eaff00] text-black font-semibold';
     }
   };
 
@@ -364,40 +384,40 @@ export function InvoiceList() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white">
+        <div onClick={() => setFilters({ ...filters, paymentStatus: "pending" })} className="bg-[#eaff00] rounded-xl p-6 text-black border border-[#d1e600] shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-blue-100 text-sm font-medium">Por Cobrar</span>
-            <Clock className="w-5 h-5 text-blue-100" />
+            <span className="text-black/70 text-sm font-semibold">Por Cobrar</span>
+            <Clock className="w-5 h-5 text-black/70" />
           </div>
           <p className="text-3xl font-bold mb-1">${stats.totalPending.toFixed(2)}</p>
-          <p className="text-blue-100 text-sm">{stats.countPending} documentos</p>
+          <p className="text-black/70 text-sm font-medium">{stats.countPending} documentos</p>
         </div>
 
-        <div className="bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl p-6 text-white">
+        <div onClick={() => setFilters({ ...filters, paymentStatus: "partial" })} className="bg-blue-100 rounded-xl p-6 text-blue-900 border border-blue-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-yellow-100 text-sm font-medium">Pago Parcial</span>
-            <DollarSign className="w-5 h-5 text-yellow-100" />
+            <span className="text-blue-800 text-sm font-semibold">Pago Parcial</span>
+            <DollarSign className="w-5 h-5 text-blue-800" />
           </div>
           <p className="text-3xl font-bold mb-1">${stats.totalPartial.toFixed(2)}</p>
-          <p className="text-yellow-100 text-sm">Saldo por cobrar</p>
+          <p className="text-blue-800 text-sm font-medium">Saldo por cobrar</p>
         </div>
 
-        <div className="bg-gradient-to-br from-red-500 to-pink-500 rounded-xl p-6 text-white">
+        <div onClick={() => setFilters({ ...filters, paymentStatus: "overdue" })} className="bg-red-100 rounded-xl p-6 text-red-900 border border-red-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-red-100 text-sm font-medium">Vencido</span>
-            <AlertTriangle className="w-5 h-5 text-red-100" />
+            <span className="text-red-800 text-sm font-semibold">Vencido</span>
+            <AlertTriangle className="w-5 h-5 text-red-800" />
           </div>
           <p className="text-3xl font-bold mb-1">${stats.totalOverdue.toFixed(2)}</p>
-          <p className="text-red-100 text-sm">{stats.countOverdue} documentos</p>
+          <p className="text-red-800 text-sm font-medium">{stats.countOverdue} documentos</p>
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-6 text-white">
+        <div onClick={() => setFilters({ ...filters, paymentStatus: "paid" })} className="bg-green-100 rounded-xl p-6 text-green-900 border border-green-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-green-100 text-sm font-medium">Cobrado</span>
-            <CheckCircle2 className="w-5 h-5 text-green-100" />
+            <span className="text-green-800 text-sm font-semibold">Cobrado</span>
+            <CheckCircle2 className="w-5 h-5 text-green-800" />
           </div>
           <p className="text-3xl font-bold mb-1">${stats.totalPaid.toFixed(2)}</p>
-          <p className="text-green-100 text-sm">{stats.countPaid} documentos</p>
+          <p className="text-green-800 text-sm font-medium">{stats.countPaid} documentos</p>
         </div>
       </div>
 
@@ -542,7 +562,7 @@ export function InvoiceList() {
               return (
                 <div
                   key={doc.id}
-                  className="bg-white p-4 rounded-lg border-2 border-gray-200 transition-all hover:shadow-md"
+                  className={`bg-white p-4 rounded-lg border-2 border-gray-200 border-l-4 transition-all hover:shadow-md ${getBorderColor(doc.payment_status)}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">

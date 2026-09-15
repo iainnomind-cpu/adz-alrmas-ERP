@@ -24,6 +24,7 @@ import { RecurringEventTooltip } from './RecurringEventTooltip';
 import { EditRecurringEventModal } from './EditRecurringEventModal';
 import { EventCard } from './EventCard';
 import { EventDetailModal } from './EventDetailModal';
+import { EventEditModal } from './EventEditModal';
 import { CalendarWeekView } from './CalendarWeekView';
 import { CalendarDayView } from './CalendarDayView';
 import { BulkReschedule } from './BulkReschedule';
@@ -384,6 +385,45 @@ export function CalendarView() {
       setTimeout(() => setValidationError(''), 5000);
     } else {
       toast.success(`Evento movido al ${newDate.toLocaleDateString('es-ES')}`);
+    }
+  };
+
+  const handleSaveEvent = async (updatedEvent: Partial<CalendarEvent> & { id: string }) => {
+    try {
+      const isConceptEvent = updatedEvent.id.startsWith('concept-');
+      
+      if (isConceptEvent) {
+        const conceptId = updatedEvent.id.replace('concept-', '');
+        const updateData: any = { updated_at: new Date().toISOString() };
+        if (updatedEvent.start) updateData.scheduled_date = updatedEvent.start.toISOString();
+        if (updatedEvent.technicianId !== undefined) updateData.technician_id = updatedEvent.technicianId || null;
+        if (updatedEvent.customerId) updateData.customer_id = updatedEvent.customerId;
+        if (updatedEvent.internalNotes !== undefined) updateData.notes = updatedEvent.internalNotes;
+        if (updatedEvent.priority) updateData.priority = updatedEvent.priority;
+        if (updatedEvent.status) updateData.status = updatedEvent.status;
+
+        const { error } = await supabase.from('calendar_concepts').update(updateData).eq('id', conceptId);
+        if (error) throw error;
+      } else {
+        const updateData: any = { updated_at: new Date().toISOString() };
+        if (updatedEvent.start) updateData.scheduled_date = updatedEvent.start.toISOString();
+        if (updatedEvent.technicianId !== undefined) updateData.technician_id = updatedEvent.technicianId || null;
+        if (updatedEvent.customerId) updateData.customer_id = updatedEvent.customerId;
+        if (updatedEvent.internalNotes !== undefined) updateData.internal_notes = updatedEvent.internalNotes;
+        if (updatedEvent.description !== undefined) updateData.description = updatedEvent.description;
+        if (updatedEvent.priority) updateData.priority = updatedEvent.priority;
+        if (updatedEvent.status) updateData.status = updatedEvent.status;
+
+        const { error } = await supabase.from('service_orders').update(updateData).eq('id', updatedEvent.id);
+        if (error) throw error;
+      }
+
+      await loadEvents();
+      setSelectedEventDetail(null);
+      toast.success('Evento actualizado correctamente');
+    } catch (err) {
+      console.error('Error saving event:', err);
+      toast.error('Error al guardar los cambios');
     }
   };
 
@@ -1214,6 +1254,7 @@ export function CalendarView() {
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
                 onDragLeave={handleDragLeave}
+                onEventClick={setSelectedEventDetail}
               />
             ) : (
               <CalendarDayView
@@ -1230,6 +1271,7 @@ export function CalendarView() {
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
                 onDragLeave={handleDragLeave}
+                onEventClick={setSelectedEventDetail}
               />
             )}
           </div>
@@ -1376,10 +1418,11 @@ export function CalendarView() {
 
       {
         selectedEventDetail && (
-          <EventDetailModal
+          <EventEditModal
             event={selectedEventDetail}
             onClose={() => setSelectedEventDetail(null)}
             onDelete={handleDeleteEvent}
+            onSave={handleSaveEvent}
           />
         )
       }

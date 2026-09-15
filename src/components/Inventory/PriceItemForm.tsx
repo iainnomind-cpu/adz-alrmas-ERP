@@ -73,6 +73,7 @@ const BATTERY_LABELS: Record<BatteryType, string> = {
 export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) {
     const isEditing = !!item;
     const [loading, setLoading] = useState(false);
+    const { hasPermission } = usePermissions();
     const [error, setError] = useState('');
 
     const [formData, setFormData] = useState<FormData>({
@@ -101,8 +102,9 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         supplier_notes: item?.supplier_notes || '',
         internal_notes: item?.internal_notes || '',
         is_active: item?.is_active ?? true,
-        has_tax: item?.has_tax ?? true,
-        tax_rate: item?.tax_rate?.toString() || '16',
+        inactive_reason: item?.inactive_reason || '',
+        has_tax: false,
+        tax_rate: '0',
         location_id: item?.location_id || ''
     });
 
@@ -301,6 +303,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 supplier_notes: formData.supplier_notes || null,
                 internal_notes: formData.internal_notes || null,
                 is_active: formData.is_active,
+                inactive_reason: formData.is_active ? null : (formData.inactive_reason || null),
                 is_kit: false, // Siempre false - kits no permitidos
                 has_tax: formData.has_tax,
                 tax_rate: finalTaxRate,
@@ -666,7 +669,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Precio Costo MXN <span className="text-red-600">*</span>
+                                                Costo Neto (IVA inc.) <span className="text-red-600">*</span>
                                             </label>
                                             <div className="relative">
                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -711,7 +714,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                                 Causa IVA
                                             </label>
                                     </div>
-                                    <div>
+                                    <div className="hidden">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
                                             Porcentaje de IVA (%) <span className="text-red-600">*</span>
                                         </label>
@@ -738,7 +741,8 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                             <div className="flex items-center gap-2 mb-4 justify-between">
                                 <div className="flex items-center gap-2">
                                     <ShoppingCart className="w-5 h-5 text-emerald-600" />
-                                    <h4 className="font-semibold text-gray-900">Precio de Venta al Público (MXN)</h4>
+                                    <h4 className="font-semibold text-gray-900">Precio de Venta al Público Neto (IVA inc.)</h4>
+                        <div className="col-span-full mb-4 bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-lg text-sm font-medium">Nota: El costo de cada producto/material/servicio y su precio de venta se manejan NETOS (con IVA incluido), independientemente de si se factura o no al cliente.</div>
                                 </div>
                                 <label className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-emerald-200 transition-colors">
                                     <input

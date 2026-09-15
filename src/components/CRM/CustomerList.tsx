@@ -193,12 +193,213 @@ export function CustomerList({ systemType }: CustomerListProps) {
         .order('account_number', { ascending: true });
 
       if (filters.searchTerm) {
-        query = query.or(`name.ilike.%${filters.searchTerm}%,business_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%,address.ilike.%${filters.searchTerm}%,street.ilike.%${filters.searchTerm}%,neighborhood.ilike.%${filters.searchTerm}%`);
+        const t = filters.searchTerm;
+        let q = `name.ilike.%${t}%,business_name.ilike.%${t}%,branch_name.ilike.%${t}%,contract_number.ilike.%${t}%`;
+        const n = parseInt(t.replace(/\D/g, ''), 10);
+        if (!isNaN(n)) { q += `,account_number.eq.${n}`; }
+        query = query.or(q);
       }
 
       if (systemType) {
         query = query.eq('system_type', systemType);
       }
+
+      // --- GPS Vehicular Specific Filters ---
+      if (systemType && systemType.toLowerCase() === 'gps_vehicular') {
+        if (filters.gpsVehicularCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.gpsVehicularCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.gpsVehicularCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.gpsVehicularCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.gpsVehicularCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.gpsVehicularPlan !== 'all') {
+          query = query.eq('monitoring_plan', filters.gpsVehicularPlan);
+        }
+      }
+
+      // --- Red Specific Filters ---
+      if (systemType && systemType.toLowerCase() === 'red') {
+        if (filters.redCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.redCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.redCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.redCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.redCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.redPlan !== 'all') {
+          query = query.eq('monitoring_plan', filters.redPlan);
+        }
+        if (filters.redDispositivo !== 'all') {
+           query = query.or(`alarm_model.ilike.%${filters.redDispositivo}%`);
+        }
+      }
+
+      // --- Video Portero Specific Filters ---
+      if (systemType && systemType.toLowerCase() === 'video_portero') {
+        if (filters.vpCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.vpCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.vpCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.vpCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.vpCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.vpPlan !== 'all') {
+          query = query.eq('monitoring_plan', filters.vpPlan);
+        }
+        if (filters.vpMarca !== 'all') {
+          query = query.or(`alarm_model.ilike.%${filters.vpMarca}%,video_portero_details->frente_calle->>marca.ilike.%${filters.vpMarca}%`);
+        }
+        if (filters.vpDispositivo !== 'all') {
+          query = query.or(`connection_technology.ilike.%${filters.vpDispositivo}%,video_portero_details->frente_calle->>tecnologia.ilike.%${filters.vpDispositivo}%`);
+        }
+      }
+
+      // --- GPS Personal Specific Filters ---
+      if (systemType && systemType.toLowerCase() === 'gps_personal') {
+        if (filters.gpsPersonalCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.gpsPersonalCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.gpsPersonalCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.gpsPersonalCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.gpsPersonalCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.gpsPersonalPlan !== 'all') {
+          query = query.eq('monitoring_plan', filters.gpsPersonalPlan);
+        }
+      }
+
+      // --- Domotica Specific Filters ---
+      if (systemType && systemType.toLowerCase() === 'domotica') {
+        if (filters.domoticaCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.domoticaCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.domoticaCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.domoticaCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.domoticaCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.domoticaPlan !== 'all') {
+          query = query.eq('monitoring_plan', filters.domoticaPlan);
+        }
+        if (filters.domoticaDispositivo !== 'all') {
+           query = query.or(`alarm_model.ilike.%${filters.domoticaDispositivo}%,domotica_details->aparato->>tipo_dispositivo.eq.${filters.domoticaDispositivo}`);
+        }
+      }
+
+      // --- Attendance Control Specific Filters ---
+      if (systemType && systemType.toLowerCase() === 'control_asistencia') {
+        if (filters.asistenciaCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.asistenciaCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.asistenciaCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.asistenciaCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.asistenciaCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.asistenciaTipo !== 'all') {
+           // Same logic as Access Control
+           query = query.or(`alarm_model.ilike.%${filters.asistenciaTipo}%,attendance_control_details->aparato->>tipo_control.eq.${filters.asistenciaTipo}`);
+        }
+      }
+
+      // --- Access Control Specific Filters ---
+      if (systemType && systemType.toLowerCase() === 'control_acceso') {
+        if (filters.accesoCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.accesoCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.accesoCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.accesoCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.accesoCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.accesoTipo !== 'all') {
+           // Wait, the Tipo is stored inside access_control_details->aparato->tipo_control
+           // Since JSON querying in PostgREST is like access_control_details->>aparato.tipo_control
+           // we can try ilike or just ignore for now if we can't easily query JSON. 
+           // Actually supabase uses: access_control_details->aparato->>tipo_control
+           // But since NewCustomerForm might just put it in alarm_model (fallback), let's check alarm_model too
+           query = query.or(`alarm_model.ilike.%${filters.accesoTipo}%,access_control_details->aparato->>tipo_control.eq.${filters.accesoTipo}`);
+        }
+      }
+
+      // --- CCTV Specific Filters ---
+      if (systemType && systemType.toLowerCase() === 'cctv') {
+        if (filters.cctvCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.cctvCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.cctvCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.cctvCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.cctvCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.cctvPlan !== 'all') {
+          query = query.eq('monitoring_plan', filters.cctvPlan);
+        }
+        if (filters.cctvDispositivo !== 'all') {
+          // Typically stored in alarm_model or communication_tech depending on how they save it, 
+          // but we'll try to match it generically or check cctv specific fields.
+          // For now, let's assume it maps to 'alarm_model' for the device type
+          query = query.ilike('alarm_model', `%${filters.cctvDispositivo}%`);
+        }
+        if (filters.cctvCanales !== 'all') {
+          query = query.eq('dvr_channels', parseInt(filters.cctvCanales));
+        }
+      }
+
+      // --- Alarm Specific Filters ---
+      if (systemType && (systemType.toLowerCase().includes('alarm') || systemType.toLowerCase() === 'cctv' || systemType.toLowerCase() === 'control_acceso' || systemType.toLowerCase() === 'control_asistencia' || systemType.toLowerCase() === 'domotica' || systemType.toLowerCase() === 'gps_personal' || systemType.toLowerCase() === 'gps_vehicular' || systemType.toLowerCase() === 'red' || systemType.toLowerCase() === 'video_portero')) {
+        if (filters.alarmaCuenta !== 'all') {
+          if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.alarmaCuenta)) {
+            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
+            query = query.eq('account_type', map[filters.alarmaCuenta]);
+            query = query.eq('status', 'Activa');
+          } else if (filters.alarmaCuenta === 'suspendida') {
+            query = query.eq('status', 'Suspendida');
+          } else if (filters.alarmaCuenta === 'cancelada') {
+            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+          }
+        }
+        if (filters.alarmaPlan !== 'all') {
+          query = query.eq('monitoring_plan', filters.alarmaPlan);
+        }
+        if (filters.alarmaMarca !== 'all') {
+          // Marca mapping could refer to alarm_model
+          query = query.ilike('alarm_model', `%${filters.alarmaMarca}%`);
+        }
+        if (filters.alarmaTecnologia !== 'all') {
+          query = query.eq('communication_tech', filters.alarmaTecnologia);
+        }
+      }
+      // -------------------------------
 
       if (filters.status !== 'all') {
         if (filters.status === 'migrated') {
@@ -821,11 +1022,552 @@ export function CustomerList({ systemType }: CustomerListProps) {
               </div>
               <p className="text-xs text-gray-500 mt-2">
                 ⚠️ Estos filtros buscan en los activos instalados del cliente. Solo se mostrarán clientes que tengan al menos un activo que coincida.
-              </p>
+                            </p>
+            </div>
+
+            {systemType && systemType.toLowerCase() === 'cctv' && (
+              <div className="bg-emerald-50/50 p-4 rounded-lg mb-4 border border-emerald-100 mt-4">
+                <h4 className="font-semibold text-emerald-900 mb-3 text-sm flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Filtros de CCTV
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta</label>
+                    <select value={filters.cctvCuenta} onChange={e => setFilters({...filters, cctvCuenta: e.target.value as any})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="normal">Normal</option>
+                      <option value="master">Maestra</option>
+                      <option value="corporativa">Corporativa</option>
+                      <option value="consolidada">Consolidada</option>
+                      <option value="suspendida">Suspendida</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Plan</label>
+                    <select value={filters.cctvPlan} onChange={e => setFilters({...filters, cctvPlan: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Local">Local</option>
+                      <option value="Cloud">Cloud</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Dispositivo</label>
+                    <select value={filters.cctvDispositivo} onChange={e => setFilters({...filters, cctvDispositivo: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Cámaras IP">Cámaras IP</option>
+                      <option value="DVR">DVR</option>
+                      <option value="NVR">NVR</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Canales</label>
+                    <select value={filters.cctvCanales} onChange={e => setFilters({...filters, cctvCanales: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="4Ch">4Ch</option>
+                      <option value="8Ch">8Ch</option>
+                      <option value="16Ch">16Ch</option>
+                      <option value="32Ch">32Ch</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {systemType && systemType.toLowerCase() === 'control_acceso' && (
+              <div className="bg-indigo-50/50 p-4 rounded-lg mb-4 border border-indigo-100 mt-4">
+                <h4 className="font-semibold text-indigo-900 mb-3 text-sm flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Filtros de Control de Acceso
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta</label>
+                    <select value={filters.accesoCuenta} onChange={e => setFilters({...filters, accesoCuenta: e.target.value as any})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="normal">Normal</option>
+                      <option value="master">Maestra</option>
+                      <option value="corporativa">Corporativa</option>
+                      <option value="consolidada">Consolidada</option>
+                      <option value="suspendida">Suspendida</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Control de Acceso</label>
+                    <select value={filters.accesoTipo} onChange={e => setFilters({...filters, accesoTipo: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Clave">Clave</option>
+                      <option value="Biométrica Huella">Biométrica Huella</option>
+                      <option value="Biométrica Huella y Clave">Biométrica Huella y Clave</option>
+                      <option value="Biométrica Huella, Clave y Tarjeta">Biométrica Huella, Clave y Tarjeta</option>
+                      <option value="Biométrica Iris">Biométrica Iris</option>
+                      <option value="Biométrica Palma de Mano">Biométrica Palma de Mano</option>
+                      <option value="Biométrica Rostro">Biométrica Rostro</option>
+                      <option value="Biométrica Rostro y Clave">Biométrica Rostro y Clave</option>
+                      <option value="Biométrica Rostro, Clave y Tarjeta">Biométrica Rostro, Clave y Tarjeta</option>
+                      <option value="Biométrica Rostro, Huella y Tarjeta">Biométrica Rostro, Huella y Tarjeta</option>
+                      <option value="Biométrica Rostro y Tarjeta">Biométrica Rostro y Tarjeta</option>
+                      <option value="Panel con Lectores Esclavos">Panel con Lectores Esclavos</option>
+                      <option value="Stand Alone Clave">Stand Alone Clave</option>
+                      <option value="Stand Alone Clave y Tarjeta">Stand Alone Clave y Tarjeta</option>
+                      <option value="Stand Alone Huella y Tarjeta">Stand Alone Huella y Tarjeta</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {systemType && systemType.toLowerCase() === 'control_asistencia' && (
+              <div className="bg-sky-50/50 p-4 rounded-lg mb-4 border border-sky-100 mt-4">
+                <h4 className="font-semibold text-sky-900 mb-3 text-sm flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Filtros de Control de Asistencia
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta</label>
+                    <select value={filters.asistenciaCuenta} onChange={e => setFilters({...filters, asistenciaCuenta: e.target.value as any})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="normal">Normal</option>
+                      <option value="master">Maestra</option>
+                      <option value="corporativa">Corporativa</option>
+                      <option value="consolidada">Consolidada</option>
+                      <option value="suspendida">Suspendida</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Control de Asistencia</label>
+                    <select value={filters.asistenciaTipo} onChange={e => setFilters({...filters, asistenciaTipo: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Clave">Clave</option>
+                      <option value="Biométrica Huella">Biométrica Huella</option>
+                      <option value="Biométrica Huella y Clave">Biométrica Huella y Clave</option>
+                      <option value="Biométrica Huella, Clave y Tarjeta">Biométrica Huella, Clave y Tarjeta</option>
+                      <option value="Biométrica Iris">Biométrica Iris</option>
+                      <option value="Biométrica Palma de Mano">Biométrica Palma de Mano</option>
+                      <option value="Biométrica Rostro">Biométrica Rostro</option>
+                      <option value="Biométrica Rostro y Clave">Biométrica Rostro y Clave</option>
+                      <option value="Biométrica Rostro, Clave y Tarjeta">Biométrica Rostro, Clave y Tarjeta</option>
+                      <option value="Biométrica Rostro, Huella y Tarjeta">Biométrica Rostro, Huella y Tarjeta</option>
+                      <option value="Biométrica Rostro y Tarjeta">Biométrica Rostro y Tarjeta</option>
+                      <option value="Panel con Lectores Esclavos">Panel con Lectores Esclavos</option>
+                      <option value="Stand Alone Clave">Stand Alone Clave</option>
+                      <option value="Stand Alone Clave y Tarjeta">Stand Alone Clave y Tarjeta</option>
+                      <option value="Stand Alone Huella y Tarjeta">Stand Alone Huella y Tarjeta</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {systemType && systemType.toLowerCase() === 'domotica' && (
+              <div className="bg-fuchsia-50/50 p-4 rounded-lg mb-4 border border-fuchsia-100 mt-4">
+                <h4 className="font-semibold text-fuchsia-900 mb-3 text-sm flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Filtros de Domótica
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta</label>
+                    <select value={filters.domoticaCuenta} onChange={e => setFilters({...filters, domoticaCuenta: e.target.value as any})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-fuchsia-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="normal">Normal</option>
+                      <option value="master">Maestra</option>
+                      <option value="corporativa">Corporativa</option>
+                      <option value="consolidada">Consolidada</option>
+                      <option value="suspendida">Suspendida</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Plan</label>
+                    <select value={filters.domoticaPlan} onChange={e => setFilters({...filters, domoticaPlan: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-fuchsia-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Local">Local</option>
+                      <option value="Cloud">Cloud</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Dispositivo de Domótica</label>
+                    <select value={filters.domoticaDispositivo} onChange={e => setFilters({...filters, domoticaDispositivo: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-fuchsia-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Abre Garage">Abre Garage</option>
+                      <option value="Aire Acondicionado">Aire Acondicionado</option>
+                      <option value="Apagador Inteligente">Apagador Inteligente</option>
+                      <option value="Cerradura">Cerradura</option>
+                      <option value="Chapa">Chapa</option>
+                      <option value="Contacto Eléctrico">Contacto Eléctrico</option>
+                      <option value="Detectores de Agua">Detectores de Agua</option>
+                      <option value="Detectores de Humo">Detectores de Humo</option>
+                      <option value="Foco">Foco</option>
+                      <option value="Lámpara">Lámpara</option>
+                      <option value="Lámpara Atenuable">Lámpara Atenuable</option>
+                      <option value="Multicontactos">Multicontactos</option>
+                      <option value="Socket">Socket</option>
+                      <option value="Termostato">Termostato</option>
+                      <option value="Válvula de Agua">Válvula de Agua</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {systemType && systemType.toLowerCase() === 'gps_personal' && (
+              <div className="bg-rose-50/50 p-4 rounded-lg mb-4 border border-rose-100 mt-4">
+                <h4 className="font-semibold text-rose-900 mb-3 text-sm flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Filtros de GPS Personal
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta</label>
+                    <select value={filters.gpsPersonalCuenta} onChange={e => setFilters({...filters, gpsPersonalCuenta: e.target.value as any})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="normal">Normal</option>
+                      <option value="master">Maestra</option>
+                      <option value="corporativa">Corporativa</option>
+                      <option value="consolidada">Consolidada</option>
+                      <option value="suspendida">Suspendida</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Plan GPS Personal</label>
+                    <select value={filters.gpsPersonalPlan} onChange={e => setFilters({...filters, gpsPersonalPlan: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Clásico">Clásico</option>
+                      <option value="Plus">Plus</option>
+                      <option value="Médical Premium">Médical Premium</option>
+                      <option value="Taxi">Taxi</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+        {systemType && systemType.toLowerCase() === 'gps_vehicular' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex flex-col gap-2 text-xs font-medium text-gray-600">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-bold text-gray-800 mr-2">Cuentas GPS Vehicular:</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Normal</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Maestra</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Corporativa</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Consolidada</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400"></div> Suspendida</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cancelada / Baja</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <span className="font-bold text-gray-800 mr-2">Plan:</span>
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded">GPSV</span>
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded">Plus</span>
+              </div>
             </div>
           </div>
         )}
 
+        {systemType && systemType.toLowerCase() === 'red' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex flex-col gap-2 text-xs font-medium text-gray-600">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-bold text-gray-800 mr-2">Cuentas Red:</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Normal</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Maestra</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Corporativa</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Consolidada</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400"></div> Suspendida</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cancelada / Baja</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <span className="font-bold text-gray-800 mr-2">Plan:</span>
+                <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded">Local</span>
+                <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded">Cloud</span>
+                
+                <span className="font-bold text-gray-800 mr-2 ml-4">Dispositivo:</span>
+                <span className="text-gray-500 text-xs">Usa el menú "Filtros Avanzados" para buscar Switch, Modem, Access Point, etc.</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {systemType && systemType.toLowerCase() === 'video_portero' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex flex-col gap-2 text-xs font-medium text-gray-600">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-bold text-gray-800 mr-2">Cuentas Video Portero:</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Normal</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Maestra</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Corporativa</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Consolidada</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400"></div> Suspendida</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cancelada / Baja</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <span className="font-bold text-gray-800 mr-2">Plan:</span>
+                <span className="px-2 py-0.5 bg-violet-100 text-violet-800 rounded">Local</span>
+                <span className="px-2 py-0.5 bg-violet-100 text-violet-800 rounded">Cloud</span>
+                
+                <span className="font-bold text-gray-800 mr-2 ml-4">Marca:</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 rounded border border-gray-300">Commax</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 rounded border border-gray-300">Dahua</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 rounded border border-gray-300">Epcom</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 rounded border border-gray-300">Hikvision</span>
+
+                <span className="font-bold text-gray-800 mr-2 ml-4">Tipo:</span>
+                <span className="px-2 py-0.5 bg-violet-100 text-violet-800 rounded">Análogo</span>
+                <span className="px-2 py-0.5 bg-violet-100 text-violet-800 rounded">IP</span>
+                <span className="px-2 py-0.5 bg-violet-100 text-violet-800 rounded">WiFi</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+            {systemType && systemType.toLowerCase() === 'gps_vehicular' && (
+              <div className="bg-amber-50/50 p-4 rounded-lg mb-4 border border-amber-100 mt-4">
+                <h4 className="font-semibold text-amber-900 mb-3 text-sm flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Filtros de GPS Vehicular
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta</label>
+                    <select value={filters.gpsVehicularCuenta} onChange={e => setFilters({...filters, gpsVehicularCuenta: e.target.value as any})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="normal">Normal</option>
+                      <option value="master">Maestra</option>
+                      <option value="corporativa">Corporativa</option>
+                      <option value="consolidada">Consolidada</option>
+                      <option value="suspendida">Suspendida</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Plan GPS Vehicular</label>
+                    <select value={filters.gpsVehicularPlan} onChange={e => setFilters({...filters, gpsVehicularPlan: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="GPSV">GPSV</option>
+                      <option value="Plus">Plus</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {systemType && systemType.toLowerCase() === 'red' && (
+              <div className="bg-cyan-50/50 p-4 rounded-lg mb-4 border border-cyan-100 mt-4">
+                <h4 className="font-semibold text-cyan-900 mb-3 text-sm flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Filtros de Red
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta</label>
+                    <select value={filters.redCuenta} onChange={e => setFilters({...filters, redCuenta: e.target.value as any})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="normal">Normal</option>
+                      <option value="master">Maestra</option>
+                      <option value="corporativa">Corporativa</option>
+                      <option value="consolidada">Consolidada</option>
+                      <option value="suspendida">Suspendida</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Plan</label>
+                    <select value={filters.redPlan} onChange={e => setFilters({...filters, redPlan: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Local">Local</option>
+                      <option value="Cloud">Cloud</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Dispositivo</label>
+                    <select value={filters.redDispositivo} onChange={e => setFilters({...filters, redDispositivo: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Switch">Switch</option>
+                      <option value="Switch PoE">Switch PoE</option>
+                      <option value="Ruteador">Ruteador</option>
+                      <option value="Access Point">Access Point</option>
+                      <option value="Extensor">Extensor</option>
+                      <option value="Modem">Modem</option>
+                      <option value="ONU">ONU</option>
+                      <option value="Sistema Mesh">Sistema Mesh</option>
+                      <option value="Enlace Punto a Punto">Enlace Punto a Punto</option>
+                      <option value="StarLink">StarLink</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {systemType && systemType.toLowerCase() === 'video_portero' && (
+              <div className="bg-violet-50/50 p-4 rounded-lg mb-4 border border-violet-100 mt-4">
+                <h4 className="font-semibold text-violet-900 mb-3 text-sm flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Filtros de Video Portero
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cuenta</label>
+                    <select value={filters.vpCuenta} onChange={e => setFilters({...filters, vpCuenta: e.target.value as any})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="normal">Normal</option>
+                      <option value="master">Maestra</option>
+                      <option value="corporativa">Corporativa</option>
+                      <option value="consolidada">Consolidada</option>
+                      <option value="suspendida">Suspendida</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Plan</label>
+                    <select value={filters.vpPlan} onChange={e => setFilters({...filters, vpPlan: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Local">Local</option>
+                      <option value="Cloud">Cloud</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Marca</label>
+                    <select value={filters.vpMarca} onChange={e => setFilters({...filters, vpMarca: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 text-sm">
+                      <option value="all">Todas</option>
+                      <option value="Commax">Commax</option>
+                      <option value="Dahua">Dahua</option>
+                      <option value="Epcom">Epcom</option>
+                      <option value="Hikvision">Hikvision</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Dispositivo</label>
+                    <select value={filters.vpDispositivo} onChange={e => setFilters({...filters, vpDispositivo: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 text-sm">
+                      <option value="all">Todos</option>
+                      <option value="Análogo">Análogo</option>
+                      <option value="IP">IP</option>
+                      <option value="WiFi">WiFi</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        
+        {systemType && systemType.toLowerCase() === 'cctv' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex flex-col gap-2 text-xs font-medium text-gray-600">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-bold text-gray-800 mr-2">Cuentas CCTV:</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Normal</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Maestra</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Corporativa</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Consolidada</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400"></div> Suspendida</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cancelada / Baja</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <span className="font-bold text-gray-800 mr-2">Plan:</span>
+                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded">Local</span>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded">Cloud</span>
+                
+                <span className="font-bold text-gray-800 mr-2 ml-4">Dispositivo:</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 rounded border border-gray-300">Cámaras IP</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 rounded border border-gray-300">DVR</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 rounded border border-gray-300">NVR</span>
+
+                <span className="font-bold text-gray-800 mr-2 ml-4">Canales:</span>
+                <span className="px-2 py-0.5 bg-teal-100 text-teal-800 rounded">4Ch</span>
+                <span className="px-2 py-0.5 bg-teal-100 text-teal-800 rounded">8Ch</span>
+                <span className="px-2 py-0.5 bg-teal-100 text-teal-800 rounded">16Ch</span>
+                <span className="px-2 py-0.5 bg-teal-100 text-teal-800 rounded">32Ch</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {systemType && systemType.toLowerCase() === 'control_acceso' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex flex-col gap-2 text-xs font-medium text-gray-600">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-bold text-gray-800 mr-2">Cuentas Control de Acceso:</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Normal</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Maestra</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Corporativa</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Consolidada</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400"></div> Suspendida</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cancelada / Baja</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <span className="font-bold text-gray-800 mr-2">Filtros Activos:</span>
+                <span className="text-gray-500 text-xs">Usa el menú "Filtros Avanzados" para buscar por Tipo de Control de Acceso (Biométrico, Stand Alone, etc.)</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {systemType && systemType.toLowerCase() === 'control_asistencia' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex flex-col gap-2 text-xs font-medium text-gray-600">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-bold text-gray-800 mr-2">Cuentas Control de Asistencia:</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Normal</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Maestra</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Corporativa</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Consolidada</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400"></div> Suspendida</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cancelada / Baja</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <span className="font-bold text-gray-800 mr-2">Filtros Activos:</span>
+                <span className="text-gray-500 text-xs">Usa el menú "Filtros Avanzados" para buscar por Tipo de Control de Asistencia</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {systemType && systemType.toLowerCase() === 'domotica' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex flex-col gap-2 text-xs font-medium text-gray-600">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-bold text-gray-800 mr-2">Cuentas Domótica:</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Normal</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Maestra</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Corporativa</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Consolidada</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400"></div> Suspendida</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cancelada / Baja</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <span className="font-bold text-gray-800 mr-2">Plan:</span>
+                <span className="px-2 py-0.5 bg-fuchsia-100 text-fuchsia-800 rounded">Local</span>
+                <span className="px-2 py-0.5 bg-fuchsia-100 text-fuchsia-800 rounded">Cloud</span>
+                
+                <span className="font-bold text-gray-800 mr-2 ml-4">Dispositivo:</span>
+                <span className="text-gray-500 text-xs">Usa el menú "Filtros Avanzados" para buscar por Tipo de Dispositivo</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {systemType && systemType.toLowerCase() === 'gps_personal' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex flex-col gap-2 text-xs font-medium text-gray-600">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-bold text-gray-800 mr-2">Cuentas GPS Personal:</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Normal</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Maestra</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Corporativa</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Consolidada</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400"></div> Suspendida</div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div> Cancelada / Baja</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <span className="font-bold text-gray-800 mr-2">Plan GPS Personal:</span>
+                <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded">Clásico</span>
+                <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded">Plus</span>
+                <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded">Médical Premium</span>
+                <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded">Taxi</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(!systemType || systemType.toLowerCase() === 'alarma') && (
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <h4 className="font-semibold text-gray-900 mb-3">Leyenda de Colores</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
@@ -859,7 +1601,9 @@ export function CustomerList({ systemType }: CustomerListProps) {
             </div>
           </div>
 
-          <h5 className="font-semibold text-gray-900 mt-4 mb-2">Estados de Pago</h5>
+          {systemType !== 'control_acceso' && systemType !== 'control_asistencia' && (
+            <>
+              <h5 className="font-semibold text-gray-900 mt-4 mb-2">Estados de Pago</h5>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-green-100 rounded"></div>
@@ -877,8 +1621,11 @@ export function CustomerList({ systemType }: CustomerListProps) {
               <div className="w-4 h-4 bg-lime-100 rounded"></div>
               <span>Suspendido</span>
             </div>
-          </div>
+                    </div>
+            </>
+          )}
         </div>
+        )}
 
         {loading && customers.length === 0 ? (
           <div className="flex items-center justify-center h-64">
@@ -896,7 +1643,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
               {customers.map((customer) => (
                 <div
                   key={customer.id}
-                  className={`p-4 rounded-lg border-2 transition-all hover:shadow-md ${getCustomerColor(customer)} ${customer.is_consolidated_account ? 'text-white' : ''
+                  className={`p-4 rounded-lg border-2 transition-all hover:shadow-md ${(systemType && (systemType.toLowerCase().includes('alarm') || systemType.toLowerCase() === 'cctv' || systemType.toLowerCase() === 'control_acceso' || systemType.toLowerCase() === 'control_asistencia' || systemType.toLowerCase() === 'domotica' || systemType.toLowerCase() === 'gps_personal' || systemType.toLowerCase() === 'gps_vehicular' || systemType.toLowerCase() === 'red' || systemType.toLowerCase() === 'video_portero')) ? getAlarmBorderColor(customer) : getCustomerColor(customer)} ${customer.is_consolidated_account ? 'text-white' : ''
                     }`}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -924,7 +1671,87 @@ export function CustomerList({ systemType }: CustomerListProps) {
                               CONSOLIDADA
                             </span>
                           )}
-                          {customer.is_suspended && (
+                          
+                          
+                          
+                          
+                          
+                          {customer.system_type === 'gps_personal' && customer.monitoring_plan && (
+                            <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded text-xs font-bold">
+                              PLAN: {customer.monitoring_plan.toUpperCase()}
+                            </span>
+                          )}
+                          {customer.system_type === 'gps_vehicular' && customer.monitoring_plan && (
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-bold">
+                              PLAN: {customer.monitoring_plan.toUpperCase()}
+                            </span>
+                          )}
+                          {customer.system_type === 'red' && customer.monitoring_plan && (
+                            <span className="px-2 py-0.5 bg-cyan-100 text-cyan-800 rounded text-xs font-bold">
+                              PLAN: {customer.monitoring_plan.toUpperCase()}
+                            </span>
+                          )}
+                          {customer.system_type === 'red' && customer.alarm_model && (
+                            <span className="px-2 py-0.5 bg-teal-100 text-teal-800 rounded text-xs font-bold">
+                              {customer.alarm_model}
+                            </span>
+                          )}
+                          {customer.system_type === 'video_portero' && customer.monitoring_plan && (
+                            <span className="px-2 py-0.5 bg-violet-100 text-violet-800 rounded text-xs font-bold">
+                              PLAN: {customer.monitoring_plan.toUpperCase()}
+                            </span>
+                          )}
+                          {customer.system_type === 'video_portero' && customer.alarm_model && (
+                            <span className="px-2 py-0.5 bg-fuchsia-100 text-fuchsia-800 rounded text-xs font-bold">
+                              {customer.alarm_model}
+                            </span>
+                          )}
+
+{customer.system_type === 'domotica' && customer.monitoring_plan && (
+                            <span className="px-2 py-0.5 bg-fuchsia-100 text-fuchsia-800 rounded text-xs font-bold">
+                              PLAN: {customer.monitoring_plan.toUpperCase()}
+                            </span>
+                          )}
+                          {customer.system_type === 'domotica' && customer.alarm_model && (
+                            <span className="px-2 py-0.5 bg-pink-100 text-pink-800 rounded text-xs font-bold">
+                              {customer.alarm_model}
+                            </span>
+                          )}
+
+{customer.system_type === 'control_asistencia' && customer.attendance_control_details?.aparato?.tipo_control && (
+                            <span className="px-2 py-0.5 bg-sky-100 text-sky-800 rounded text-xs font-bold">
+                              {customer.attendance_control_details.aparato.tipo_control}
+                            </span>
+                          )}
+                          {customer.system_type === 'control_asistencia' && customer.alarm_model && !customer.attendance_control_details?.aparato?.tipo_control && (
+                            <span className="px-2 py-0.5 bg-sky-100 text-sky-800 rounded text-xs font-bold">
+                              {customer.alarm_model}
+                            </span>
+                          )}
+
+{customer.system_type === 'control_acceso' && customer.access_control_details?.aparato?.tipo_control && (
+                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded text-xs font-bold">
+                              {customer.access_control_details.aparato.tipo_control}
+                            </span>
+                          )}
+                          {customer.system_type === 'control_acceso' && customer.alarm_model && !customer.access_control_details?.aparato?.tipo_control && (
+                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded text-xs font-bold">
+                              {customer.alarm_model}
+                            </span>
+                          )}
+
+{customer.system_type === 'cctv' && customer.monitoring_plan && (
+                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded text-xs font-bold">
+                              PLAN: {customer.monitoring_plan.toUpperCase()}
+                            </span>
+                          )}
+                          {customer.system_type === 'cctv' && customer.dvr_channels && (
+                            <span className="px-2 py-0.5 bg-teal-100 text-teal-800 rounded text-xs font-bold">
+                              {customer.dvr_channels} CH
+                            </span>
+                          )}
+
+{customer.is_suspended && (
                             <span className="px-2 py-0.5 bg-lime-500 text-white rounded text-xs font-bold">
                               SUSPENDIDO
                             </span>
@@ -1020,11 +1847,13 @@ export function CustomerList({ systemType }: CustomerListProps) {
                             </span>
                           )}
 
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${getPaymentStatusColor(customer)}`}>
+                          {systemType !== 'control_acceso' && systemType !== 'control_asistencia' && (
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${getPaymentStatusColor(customer)}`}>
                             {customer.is_suspended ? 'SUSPENDIDO' :
                               customer.status === 'cancelled' ? 'CANCELADO' :
                                 customer.payment_status?.toUpperCase() || 'SIN ESTADO'}
                           </span>
+                          )}
 
                           {customer.service_count && customer.service_count > 1 && (
                             <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs font-medium">

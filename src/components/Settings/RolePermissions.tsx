@@ -123,6 +123,9 @@ export function RolePermissions() {
       case 'add_materials': return 'Agregar Materiales';
       case 'process_payment': return 'Procesar Pagos';
       case 'view_reports': return 'Ver Reportes';
+      case 'deactivate': return 'Desactivar Productos';
+      case 'pause': return 'Pausar';
+      case 'cancel': return 'Cancelar';
       default: return action;
     }
   };

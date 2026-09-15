@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, type PriceListItem } from '../../lib/supabase';
 import { getItemNetPrice } from '../Dashboard/InventoryReport';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { PriceItemForm } from './PriceItemForm';
 import { PriceCalculator } from './PriceCalculator';
 import {
@@ -30,6 +31,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export function PriceListManager() {
     const [items, setItems] = useState<PriceListItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const { hasPermission } = usePermissions();
     const [showForm, setShowForm] = useState(false);
     const [editingItem, setEditingItem] = useState<PriceListItem | null>(null);
     const [showCalculator, setShowCalculator] = useState<PriceListItem | null>(null);
@@ -68,9 +70,27 @@ export function PriceListManager() {
     };
 
     const toggleItemStatus = async (item: PriceListItem) => {
+        if (!hasPermission('inventory', 'deactivate')) {
+            alert('No tienes permisos para cambiar el estado de los productos.');
+            return;
+        }
+
+        let inactiveReason = null;
+        if (item.is_active) {
+            inactiveReason = prompt('¿Motivo de inactividad? (Ej: Dejó de fabricarse, El proveedor ya no lo vende, Cambió de modelo, Otro)');
+            if (inactiveReason === null) return; // Cancelado
+            if (!inactiveReason.trim()) {
+                alert('Debe especificar un motivo para desactivar el producto.');
+                return;
+            }
+        }
+
         try {
             const { error } = await (supabase.from('price_list') as any)
-                .update({ is_active: !item.is_active })
+                .update({ 
+                    is_active: !item.is_active,
+                    inactive_reason: inactiveReason
+                })
                 .eq('id', item.id);
 
             if (error) throw error;
@@ -161,7 +181,7 @@ export function PriceListManager() {
     };
 
     const exportToCSV = () => {
-        const headers = ['Código', 'Marca', 'Modelo', 'Nombre', 'Categoría', 'Moneda', 'Precio Base MXN', 'IVA', 'Precio c/IVA MXN', 'Stock', 'Estado'];
+        const headers = ['Código', 'Marca', 'Modelo', 'Nombre', 'Categoría', 'Moneda', 'Precio de Venta Neto', 'Stock', 'Estado'];
         const rows = filteredItems.map(item => [
             item.code,
             item.brand || '',

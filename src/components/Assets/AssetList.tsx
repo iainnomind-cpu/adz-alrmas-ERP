@@ -76,7 +76,7 @@ export function AssetList() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-6 text-white">
+        <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-6 text-white" title="Número total de equipos y dispositivos instalados en todas las cuentas de clientes.">
           <div className="flex items-center justify-between mb-2">
             <span className="text-blue-100">Total Activos</span>
             <Shield className="w-5 h-5 text-blue-100" />
@@ -87,7 +87,7 @@ export function AssetList() {
           )}
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-6 text-white">
+        <div className="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-6 text-white" title="Equipos que están actualmente operativos y no han sido dados de baja ni marcados como obsoletos (EOL).">
           <div className="flex items-center justify-between mb-2">
             <span className="text-green-100">Activos</span>
             <Wrench className="w-5 h-5 text-green-100" />
@@ -104,7 +104,7 @@ export function AssetList() {
           <p className="text-orange-200 text-sm mt-2">Requieren reemplazo</p>
         </div>
 
-        <div className="bg-gradient-to-br from-yellow-500 to-amber-500 rounded-xl p-6 text-white">
+        <div className="bg-gradient-to-br from-yellow-500 to-amber-500 rounded-xl p-6 text-white" title="Equipos problemáticos que han requerido 3 o más órdenes de servicio o reparaciones.">
           <div className="flex items-center justify-between mb-2">
             <span className="text-yellow-100">Alto Servicio</span>
             <TrendingUp className="w-5 h-5 text-yellow-100" />
@@ -113,7 +113,7 @@ export function AssetList() {
           <p className="text-yellow-200 text-sm mt-2">3+ tickets de servicio</p>
         </div>
 
-        <div className="bg-gradient-to-br from-red-500 to-pink-500 rounded-xl p-6 text-white">
+        <div className="bg-gradient-to-br from-red-500 to-pink-500 rounded-xl p-6 text-white" title="Costo total estimado en refacciones y tiempo invertido en reparaciones de estos equipos. Representa una oportunidad de ahorro si se reemplazan.">
           <div className="flex items-center justify-between mb-2">
             <span className="text-red-100">Costo Servicio</span>
             <DollarSign className="w-5 h-5 text-red-100" />

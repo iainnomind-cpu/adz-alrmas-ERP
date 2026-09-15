@@ -10,6 +10,7 @@ import {
   AlertCircle,
   MapPinOff
 } from 'lucide-react';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { calculateLaborCharge } from '../../constants/serviceOrderBilling';
 
 interface ServiceOrderActionsProps {
@@ -29,6 +30,7 @@ export function ServiceOrderActions({
   checkOutTime,
   onUpdate
 }: ServiceOrderActionsProps) {
+  const { hasPermission } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -201,6 +203,34 @@ export function ServiceOrderActions({
     }
   };
 
+  const handleCancel = async () => {
+    if (!confirm('¿Estás seguro de que deseas cancelar esta orden de servicio? Esta acción no se puede deshacer.')) {
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error: cancelError } = await supabase
+        .from('service_orders')
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (cancelError) throw cancelError;
+      
+      onUpdate();
+    } catch (err: any) {
+      console.error('Error canceling order:', err);
+      setError(err.message || 'Error al cancelar la orden');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCheckOut = async () => {
     setLoading(true);
     setGettingLocation(true);
@@ -347,22 +377,41 @@ export function ServiceOrderActions({
           </button>
         )}
 
+        {status !== 'completed' && status !== 'cancelled' && hasPermission('service_orders', 'cancel') && (
+          <button
+            onClick={handleCancel}
+            disabled={loading}
+            className="flex-1 min-w-[150px] px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <AlertCircle className="w-5 h-5" />
+                Cancelar Orden
+              </>
+            )}
+          </button>
+        )}
+
         {checkInTime && !checkOutTime && !isPaused && (
           <>
-            <button
-              onClick={handlePause}
-              disabled={loading}
-              className="flex-1 min-w-[150px] px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
-            >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Pause className="w-5 h-5" />
-                  Pausar
-                </>
-              )}
-            </button>
+            {hasPermission('service_orders', 'pause') && (
+              <button
+                onClick={handlePause}
+                disabled={loading}
+                className="flex-1 min-w-[150px] px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Pause className="w-5 h-5" />
+                    Pausar
+                  </>
+                )}
+              </button>
+            )}
 
             <button
               onClick={handleCheckOut}

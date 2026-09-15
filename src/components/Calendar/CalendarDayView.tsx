@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CalendarEvent } from '../../types/calendar.types';
 import { EventCard } from './EventCard';
-import { EventDetailModal } from './EventDetailModal';
 import { useCalendarSettings } from '../../hooks/useCalendarSettings';
 
 interface CalendarDayViewProps {
@@ -34,10 +33,10 @@ export function CalendarDayView({
   draggedConcept,
   onDragOver,
   onDrop,
-  onDragLeave
+  onDragLeave,
+  onEventClick
 }: CalendarDayViewProps) {
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const { settings: calendarSettings } = useCalendarSettings();
+    const { settings: calendarSettings } = useCalendarSettings();
 
   const hours = Array.from({ length: 18 }, (_, i) => i + 6);
 
@@ -140,7 +139,7 @@ export function CalendarDayView({
                         key={event.id}
                         event={event}
                         size="large"
-                        onClick={() => setSelectedEvent(event)}
+                        onClick={() => onEventClick(event)}
                         onDragStart={(e) => onDragStart(e, event)}
                         onDragEnd={onDragEnd}
                         onMouseEnter={(e) => onEventHover(e, event)}
@@ -158,12 +157,7 @@ export function CalendarDayView({
         })}
       </div>
 
-      {selectedEvent && (
-        <EventDetailModal
-          event={selectedEvent}
-          onClose={() => setSelectedEvent(null)}
-        />
-      )}
+      
     </div>
   );
 }
