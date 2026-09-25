@@ -201,7 +201,21 @@ export function CustomerList({ systemType }: CustomerListProps) {
       }
 
       if (systemType) {
-        query = query.eq('system_type', systemType);
+        if (systemType === 'alarma') {
+          query = query.or('system_type.ilike.%alarma%,system_type.is.null');
+        } else if (systemType === 'control_acceso') {
+          query = query.or('system_type.ilike.%control_acceso%,system_type.ilike.%Control de Acceso%');
+        } else if (systemType === 'video_portero') {
+          query = query.or('system_type.ilike.%video_portero%,system_type.ilike.%Video Portero%');
+        } else if (systemType === 'control_asistencia') {
+          query = query.or('system_type.ilike.%control_asistencia%,system_type.ilike.%Control de Asistencia%');
+        } else if (systemType === 'gps_personal') {
+          query = query.or('system_type.ilike.%gps_personal%,system_type.ilike.%GPS Personal%');
+        } else if (systemType === 'gps_vehicular') {
+          query = query.or('system_type.ilike.%gps_vehicular%,system_type.ilike.%GPS Vehicular%');
+        } else {
+          query = query.ilike('system_type', `%${systemType}%`);
+        }
       }
 
       // --- GPS Vehicular Specific Filters ---
