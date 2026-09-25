@@ -112,7 +112,7 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
   const loadCustomers = async () => {
     const { data, error } = await supabase
       .from('customers')
-      .select('id, name, business_name, account_number, address, phone, system_type')
+      .select('id, name, business_name, branch_name, account_number, address, phone, system_type')
       .order('name');
     if (error) console.error('Error loading customers:', error);
     if (data) setCustomers(data);
@@ -374,6 +374,7 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
     return (
       c.name?.toLowerCase().includes(q) ||
       c.business_name?.toLowerCase().includes(q) ||
+      c.branch_name?.toLowerCase().includes(q) ||
       String(c.account_number || '').toLowerCase().includes(q) ||
       c.address?.toLowerCase().includes(q)
     );
