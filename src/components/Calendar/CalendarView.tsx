@@ -167,6 +167,7 @@ export function CalendarView() {
         };
       });
 
+      const { data: allTechs } = await supabase.from('technicians').select('id, full_name');
       const mappedConcepts: CalendarEvent[] = ((scheduledConcepts as any[]) || []).map(concept => {
         const scheduledDate = new Date(concept.scheduled_date);
         const endDate = new Date(scheduledDate);
@@ -186,6 +187,7 @@ export function CalendarView() {
           customerId: concept.customer_id,
           customerName: concept.customers?.name,
           technicianId: concept.assigned_to,
+          technicianName: allTechs?.find(t => t.id === concept.assigned_to)?.full_name || (concept.assigned_to ? 'Técnico Asignado' : undefined),
           color: getEventColor(concept.priority, 'requested'),
           estimatedAmount: concept.estimated_amount,
           internalNotes: concept.notes
