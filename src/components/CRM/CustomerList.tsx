@@ -202,7 +202,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
 
       if (systemType) {
         if (systemType === 'alarma') {
-          query = query.or('system_type.eq.alarma,system_type.eq.Alarma,system_type.is.null');
+          query = query.or('system_type.eq.alarma,system_type.eq.Alarma,system_type.is.null,system_type.eq.');
         } else if (systemType === 'control_acceso') {
           query = query.or('system_type.eq.control_acceso,system_type.eq.Control de Acceso');
         } else if (systemType === 'video_portero') {
