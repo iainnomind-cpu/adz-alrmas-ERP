@@ -186,7 +186,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
         // Asignar número de cuenta progresivo para nuevos clientes si no se tiene uno asignado
         if (!payload.account_number) {
           const progressive = await getNextProgressiveAccountNumber(formData.system_type || 'alarma');
-          payload.account_number = progressive.nextSequence;
+          payload.account_number = progressive.nextDbAccountNumber;
         }
 
         // Create new customer
