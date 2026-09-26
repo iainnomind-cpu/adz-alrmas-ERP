@@ -202,19 +202,21 @@ export function CustomerList({ systemType }: CustomerListProps) {
 
       if (systemType) {
         if (systemType === 'alarma') {
-          query = query.or('system_type.ilike.%alarma%,system_type.is.null');
+          query = query.or('system_type.eq.alarma,system_type.eq.Alarma,system_type.is.null');
         } else if (systemType === 'control_acceso') {
-          query = query.or('system_type.ilike.%control_acceso%,system_type.ilike.%Control de Acceso%');
+          query = query.or('system_type.eq.control_acceso,system_type.eq.Control de Acceso');
         } else if (systemType === 'video_portero') {
-          query = query.or('system_type.ilike.%video_portero%,system_type.ilike.%Video Portero%');
+          query = query.or('system_type.eq.video_portero,system_type.eq.Video Portero');
         } else if (systemType === 'control_asistencia') {
-          query = query.or('system_type.ilike.%control_asistencia%,system_type.ilike.%Control de Asistencia%');
+          query = query.or('system_type.eq.control_asistencia,system_type.eq.Control de Asistencia');
         } else if (systemType === 'gps_personal') {
-          query = query.or('system_type.ilike.%gps_personal%,system_type.ilike.%GPS Personal%');
+          query = query.or('system_type.eq.gps_personal,system_type.eq.GPS Personal');
         } else if (systemType === 'gps_vehicular') {
-          query = query.or('system_type.ilike.%gps_vehicular%,system_type.ilike.%GPS Vehicular%');
+          query = query.or('system_type.eq.gps_vehicular,system_type.eq.GPS Vehicular');
         } else {
-          query = query.ilike('system_type', `%${systemType}%`);
+          // fallback to exact match or capitalized exact match
+          const capitalized = systemType.charAt(0).toUpperCase() + systemType.slice(1);
+          query = query.or(`system_type.eq.${systemType},system_type.eq.${capitalized}`);
         }
       }
 
