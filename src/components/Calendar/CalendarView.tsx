@@ -396,11 +396,11 @@ export function CalendarView() {
         const conceptId = updatedEvent.id.replace('concept-', '');
         const updateData: any = { updated_at: new Date().toISOString() };
         if (updatedEvent.start) updateData.scheduled_date = updatedEvent.start.toISOString();
-        if (updatedEvent.technicianId !== undefined) updateData.technician_id = updatedEvent.technicianId || null;
+        if (updatedEvent.technicianId !== undefined) updateData.assigned_to = updatedEvent.technicianId || null;
         if (updatedEvent.customerId) updateData.customer_id = updatedEvent.customerId;
         if (updatedEvent.internalNotes !== undefined) updateData.notes = updatedEvent.internalNotes;
         if (updatedEvent.priority) updateData.priority = updatedEvent.priority;
-        if (updatedEvent.status) updateData.status = updatedEvent.status;
+        // status no existe en calendar_concepts
 
         const { error } = await supabase.from('calendar_concepts').update(updateData).eq('id', conceptId);
         if (error) throw error;
