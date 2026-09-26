@@ -1,3 +1,4 @@
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, type PriceListItem } from '../../lib/supabase';
 import {
