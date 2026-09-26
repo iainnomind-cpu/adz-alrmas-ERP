@@ -255,7 +255,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
           query = query.eq('monitoring_plan', filters.redPlan);
         }
         if (filters.redDispositivo !== 'all') {
-           query = query.or(`alarm_model.ilike.%${filters.redDispositivo}%`);
+           // query = query.or(`alarm_model.ilike.%${filters.redDispositivo}%`);
         }
       }
 
@@ -276,7 +276,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
           query = query.eq('monitoring_plan', filters.vpPlan);
         }
         if (filters.vpMarca !== 'all') {
-          query = query.or(`alarm_model.ilike.%${filters.vpMarca}%,video_portero_details->frente_calle->>marca.ilike.%${filters.vpMarca}%`);
+          // query = query.or(`alarm_model.ilike.%${filters.vpMarca}%,video_portero_details->frente_calle->>marca.ilike.%${filters.vpMarca}%`);
         }
         if (filters.vpDispositivo !== 'all') {
           query = query.or(`connection_technology.ilike.%${filters.vpDispositivo}%,video_portero_details->frente_calle->>tecnologia.ilike.%${filters.vpDispositivo}%`);
@@ -318,7 +318,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
           query = query.eq('monitoring_plan', filters.domoticaPlan);
         }
         if (filters.domoticaDispositivo !== 'all') {
-           query = query.or(`alarm_model.ilike.%${filters.domoticaDispositivo}%,domotica_details->aparato->>tipo_dispositivo.eq.${filters.domoticaDispositivo}`);
+           // query = query.or(`alarm_model.ilike.%${filters.domoticaDispositivo}%,domotica_details->aparato->>tipo_dispositivo.eq.${filters.domoticaDispositivo}`);
         }
       }
 
@@ -337,7 +337,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
         }
         if (filters.asistenciaTipo !== 'all') {
            // Same logic as Access Control
-           query = query.or(`alarm_model.ilike.%${filters.asistenciaTipo}%,attendance_control_details->aparato->>tipo_control.eq.${filters.asistenciaTipo}`);
+           // query = query.or(`alarm_model.ilike.%${filters.asistenciaTipo}%,attendance_control_details->aparato->>tipo_control.eq.${filters.asistenciaTipo}`);
         }
       }
 
@@ -360,7 +360,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
            // we can try ilike or just ignore for now if we can't easily query JSON. 
            // Actually supabase uses: access_control_details->aparato->>tipo_control
            // But since NewCustomerForm might just put it in alarm_model (fallback), let's check alarm_model too
-           query = query.or(`alarm_model.ilike.%${filters.accesoTipo}%,access_control_details->aparato->>tipo_control.eq.${filters.accesoTipo}`);
+           // query = query.or(`alarm_model.ilike.%${filters.accesoTipo}%,access_control_details->aparato->>tipo_control.eq.${filters.accesoTipo}`);
         }
       }
 
@@ -384,10 +384,10 @@ export function CustomerList({ systemType }: CustomerListProps) {
           // Typically stored in alarm_model or communication_tech depending on how they save it, 
           // but we'll try to match it generically or check cctv specific fields.
           // For now, let's assume it maps to 'alarm_model' for the device type
-          query = query.ilike('alarm_model', `%${filters.cctvDispositivo}%`);
+          // query = query.ilike('alarm_model', `%${filters.cctvDispositivo}%`);
         }
         if (filters.cctvCanales !== 'all') {
-          query = query.eq('dvr_channels', parseInt(filters.cctvCanales));
+          // query = query.eq('dvr_channels', parseInt(filters.cctvCanales));
         }
       }
 
@@ -409,7 +409,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
         }
         if (filters.alarmaMarca !== 'all') {
           // Marca mapping could refer to alarm_model
-          query = query.ilike('alarm_model', `%${filters.alarmaMarca}%`);
+          // query = query.ilike('alarm_model', `%${filters.alarmaMarca}%`);
         }
         if (filters.alarmaTecnologia !== 'all') {
           query = query.eq('communication_tech', filters.alarmaTecnologia);
