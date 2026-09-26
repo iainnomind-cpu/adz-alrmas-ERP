@@ -104,8 +104,8 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         internal_notes: item?.internal_notes || '',
         is_active: item?.is_active ?? true,
         inactive_reason: item?.inactive_reason || '',
-        has_tax: false,
-        tax_rate: '0',
+        has_tax: item ? (item.has_tax ?? true) : true,
+        tax_rate: item?.tax_rate?.toString() || '16',
         location_id: item?.location_id || ''
     });
 
@@ -707,12 +707,12 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                             <input
                                                 type="checkbox"
                                                 id="has_tax"
-                                                checked={formData.has_tax}
-                                                onChange={(e) => setFormData({ ...formData, has_tax: e.target.checked })}
+                                                checked={!formData.has_tax}
+                                                onChange={(e) => setFormData({ ...formData, has_tax: !e.target.checked })}
                                                 className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                                             />
                                             <label htmlFor="has_tax" className="text-sm font-medium text-gray-700">
-                                                Causa IVA
+                                                No causa IVA
                                             </label>
                                     </div>
                                     <div className="hidden">
