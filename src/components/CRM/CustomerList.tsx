@@ -1659,7 +1659,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
               {customers.map((customer) => (
                 <div
                   key={customer.id}
-                  className={`p-4 rounded-lg border-2 transition-all hover:shadow-md ${(systemType && (systemType.toLowerCase().includes('alarm') || systemType.toLowerCase() === 'cctv' || systemType.toLowerCase() === 'control_acceso' || systemType.toLowerCase() === 'control_asistencia' || systemType.toLowerCase() === 'domotica' || systemType.toLowerCase() === 'gps_personal' || systemType.toLowerCase() === 'gps_vehicular' || systemType.toLowerCase() === 'red' || systemType.toLowerCase() === 'video_portero')) ? getAlarmBorderColor(customer) : getCustomerColor(customer)} ${customer.is_consolidated_account ? 'text-white' : ''
+                  className={`p-4 rounded-lg border-2 transition-all hover:shadow-md ${(systemType && (systemType.toLowerCase().includes('alarm') || systemType.toLowerCase() === 'cctv' || systemType.toLowerCase() === 'control_acceso' || systemType.toLowerCase() === 'control_asistencia' || systemType.toLowerCase() === 'domotica' || systemType.toLowerCase() === 'gps_personal' || systemType.toLowerCase() === 'gps_vehicular' || systemType.toLowerCase() === 'red' || systemType.toLowerCase() === 'video_portero')) ? getCustomerColor(customer) : getCustomerColor(customer)} ${customer.is_consolidated_account ? 'text-white' : ''
                     }`}
                 >
                   <div className="flex items-start justify-between gap-4">
