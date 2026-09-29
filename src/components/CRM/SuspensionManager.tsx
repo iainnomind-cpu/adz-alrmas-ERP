@@ -37,6 +37,7 @@ export function SuspensionManager({ customer, onUpdate }: SuspensionManagerProps
       .from('customers')
       .update({
         is_suspended: true,
+        status: 'Suspendida',
         suspension_start_date: suspensionData.suspension_start_date,
         suspension_end_date: suspensionData.suspension_end_date || null,
         suspension_reason: suspensionData.suspension_reason
@@ -44,35 +45,39 @@ export function SuspensionManager({ customer, onUpdate }: SuspensionManagerProps
       .eq('id', customer.id);
 
     if (!updateError) {
+      const formattedStartDate = suspensionData.suspension_start_date
+        ? new Date(suspensionData.suspension_start_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+        : 'Hoy';
+      const formattedEndDate = suspensionData.suspension_end_date
+        ? new Date(suspensionData.suspension_end_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+        : 'Indefinida / Pendiente';
+
       await supabase
         .from('customer_account_history')
         .insert([{
           customer_id: customer.id,
           change_type: 'suspension',
-          description: `Cuenta suspendida. Motivo: ${suspensionData.suspension_reason}`,
+          description: `Cuenta suspendida. Inicio: ${suspensionData.suspension_start_date}${suspensionData.suspension_end_date ? ` | Fin programado: ${suspensionData.suspension_end_date}` : ' (Indefinida)'}. Motivo: ${suspensionData.suspension_reason || 'Sin motivo'}`,
           changed_by: user.id
         }]);
 
-      // Enviar notificación de suspensión
+      // 1. Enviar notificación de suspensión al cliente
       try {
-        // Obtener email del cliente
         const { data: customerData } = await supabase
           .from('customers')
-          .select('email, name')
+          .select('email, name, phone, system_type')
           .eq('id', customer.id)
           .single();
 
         if (customerData?.email) {
-          // Obtener plantilla de suspensión
           const { data: template } = await supabase
             .from('notification_templates')
             .select('*')
             .eq('type', 'suspension_notice')
             .eq('is_active', true)
-            .single();
+            .maybeSingle();
 
           if (template) {
-            // Enviar notificación
             await supabase.functions.invoke('send-notification', {
               body: {
                 templateId: template.id,
@@ -83,21 +88,53 @@ export function SuspensionManager({ customer, onUpdate }: SuspensionManagerProps
                 variables: {
                   customer_name: customerData.name || customer.full_name,
                   account_number: customer.account_number,
-                  suspension_date: new Date(suspensionData.suspension_start_date).toLocaleDateString('es-MX'),
-                  reason: suspensionData.suspension_reason,
-                  end_date: suspensionData.suspension_end_date
-                    ? new Date(suspensionData.suspension_end_date).toLocaleDateString('es-MX')
-                    : 'Indefinida',
+                  suspension_date: formattedStartDate,
+                  reason: suspensionData.suspension_reason || 'Suspensión temporal solicitada / administrativa',
+                  end_date: formattedEndDate,
                   company_name: 'Alarmas ADZ'
                 }
               }
             });
-            console.log('Notificación de suspensión enviada. Template ID:', template.id);
+          } else {
+            await supabase.functions.invoke('send-notification', {
+              body: {
+                customerId: customer.id,
+                customerEmail: customerData.email,
+                customerName: customerData.name || customer.full_name,
+                notificationType: 'suspension_notice',
+                subject: `Aviso de Suspensión de Servicio - Cuenta ${customer.account_number} - Alarmas ADZ`,
+                body: `Estimado(a) ${customerData.name || customer.full_name},\n\nLe informamos que su servicio de monitoreo (Cuenta: ${customer.account_number}) ha sido suspendido a partir del ${formattedStartDate}.\n\nFecha estimada de reanudación: ${formattedEndDate}\nMotivo: ${suspensionData.suspension_reason || 'Suspensión temporal'}\n\nSi desea reactivar su servicio o tiene dudas, comuníquese con nosotros a contacto@alarmasadz.com.mx o al teléfono de atención a clientes.\n\nAtentamente,\nAlarmas ADZ`,
+                variables: {
+                  customer_name: customerData.name || customer.full_name,
+                  account_number: customer.account_number,
+                  suspension_date: formattedStartDate,
+                  reason: suspensionData.suspension_reason || 'Suspensión temporal',
+                  end_date: formattedEndDate,
+                }
+              }
+            });
           }
         }
+
+        // 2. Email de recordatorio de reanudación a la empresa (contacto@alarmasadz.com.mx y clientes@alarmasadz.com.mx)
+        await supabase.functions.invoke('send-notification', {
+          body: {
+            customerEmail: 'contacto@alarmasadz.com.mx, clientes@alarmasadz.com.mx',
+            customerName: 'Equipo Alarmas ADZ',
+            notificationType: 'suspension_internal_notice',
+            subject: `[SUSPENSIÓN / RECORDATORIO DE REANUDACIÓN] Cuenta ${customer.account_number} - ${customer.full_name}`,
+            body: `Se ha registrado una suspensión de servicio:\n\n• Cliente: ${customer.full_name}\n• Cuenta: ${customer.account_number}\n• Sistema: ${customerData?.system_type || 'Alarma'}\n• Fecha de Inicio: ${formattedStartDate}\n• Fecha Fin de Suspensión (Reanudación programada): ${formattedEndDate}\n• Motivo: ${suspensionData.suspension_reason || 'No especificado'}\n• Teléfono: ${customerData?.phone || 'No registrado'}\n• Correo del cliente: ${customerData?.email || 'No registrado'}\n\nEste recordatorio queda registrado para el seguimiento de la fecha de reanudación y monitoreo en el Dashboard Ejecutivo.`,
+            variables: {
+              customer_name: customer.full_name,
+              account_number: customer.account_number,
+              suspension_date: formattedStartDate,
+              end_date: formattedEndDate,
+              reason: suspensionData.suspension_reason || 'No especificado'
+            }
+          }
+        });
       } catch (error) {
-        console.error('Error al enviar notificación de suspensión:', error);
-        // No bloqueamos la suspensión si falla el email
+        console.error('Error al enviar notificaciones de suspensión:', error);
       }
 
       setShowForm(false);
@@ -120,13 +157,14 @@ export function SuspensionManager({ customer, onUpdate }: SuspensionManagerProps
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const todayIso = new Date().toISOString().split('T')[0];
+
     const { error: updateError } = await supabase
       .from('customers')
       .update({
         is_suspended: false,
-        suspension_start_date: null,
-        suspension_end_date: null,
-        suspension_reason: null
+        status: 'Activa',
+        reactivation_date: todayIso
       })
       .eq('id', customer.id);
 
@@ -136,7 +174,7 @@ export function SuspensionManager({ customer, onUpdate }: SuspensionManagerProps
         .insert([{
           customer_id: customer.id,
           change_type: 'reactivation',
-          description: 'Cuenta reactivada',
+          description: `Cuenta reactivada a estatus Activa el ${todayIso}`,
           changed_by: user.id
         }]);
 

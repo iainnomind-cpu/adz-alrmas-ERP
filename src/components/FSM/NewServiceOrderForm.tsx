@@ -40,7 +40,7 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
     priority: 'normal',
     service_type: 'reactive',
     estimated_duration_minutes: 60,
-    travel_zone: 'zm_cd_guzman_50km',
+    travel_zone: 'local',
     technician_count: 1,
     notes: '',
     monitoring_center_folio: '',
@@ -504,9 +504,15 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Se registra desde el alta para informar cargos de traslado antes del cobro.
-                </p>
+                {formData.travel_zone === 'local' ? (
+                  <p className="text-xs text-blue-600 mt-1">
+                    Zona Local ($0): Tamazula, Tuxpan, Zapotiltic, Gómez Farías, San Andrés, Atoyac, Sayula y municipios circundantes (≤ 50 km).
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Se registra desde el alta para informar cargos de traslado antes del cobro.
+                  </p>
+                )}
               </div>
 
               <div>

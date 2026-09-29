@@ -24,3 +24,9 @@ export const getSystemTypeLabel = (value: string | undefined): string => {
   const normalizedValue = value.toLowerCase().replace(/ /g, '_');
   return SYSTEM_TYPE_LABELS[normalizedValue] || SYSTEM_TYPE_LABELS[value] || value;
 };
+
+export const isAlarmSystem = (value: string | null | undefined): boolean => {
+  if (!value) return true;
+  const normalized = value.toLowerCase().replace(/ /g, '_').trim();
+  return normalized === 'alarma' || normalized === 'alarm' || normalized === 'alarmas';
+};

@@ -3,9 +3,10 @@ import { UserManagement } from './UserManagement';
 import { RolePermissions } from './RolePermissions';
 import { FolioSeriesManagement } from './FolioSeriesManagement';
 import { NotificationsManager } from './NotificationsManager';
-import { Users, Shield, FileText, Bell } from 'lucide-react';
+import { SystemSettings } from './SystemSettings';
+import { Users, Shield, FileText, Bell, Sliders } from 'lucide-react';
 
-type TabType = 'users' | 'roles' | 'folios' | 'notifications';
+type TabType = 'users' | 'roles' | 'folios' | 'notifications' | 'system';
 
 export function SettingsModule() {
   const [activeTab, setActiveTab] = useState<TabType>('users');
@@ -14,7 +15,8 @@ export function SettingsModule() {
     { id: 'users' as TabType, label: 'Usuarios', icon: Users },
     { id: 'roles' as TabType, label: 'Roles y Permisos', icon: Shield },
     { id: 'folios' as TabType, label: 'Series de Folios', icon: FileText },
-    { id: 'notifications' as TabType, label: 'Notificaciones', icon: Bell }
+    { id: 'notifications' as TabType, label: 'Notificaciones', icon: Bell },
+    { id: 'system' as TabType, label: 'Parámetros del Sistema', icon: Sliders }
   ];
 
   const renderContent = () => {
@@ -27,6 +29,8 @@ export function SettingsModule() {
         return <FolioSeriesManagement />;
       case 'notifications':
         return <NotificationsManager />;
+      case 'system':
+        return <SystemSettings />;
       default:
         return <UserManagement />;
     }

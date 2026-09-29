@@ -120,13 +120,13 @@ export function LocationStockView() {
 
     const getQtyColor = (qty: number) => {
         if (viewMode !== 'units') {
-             if (qty === 0) return 'text-gray-300';
-             return 'text-emerald-700 font-semibold';
+             if (qty === 0) return 'text-gray-300 font-bold';
+             return 'text-emerald-700 font-bold';
         }
-        if (qty === 0) return 'text-gray-300';
+        if (qty === 0) return 'text-gray-400 font-bold';
         if (qty <= 2) return 'text-red-600 font-bold';
-        if (qty <= 5) return 'text-amber-600 font-semibold';
-        return 'text-green-600 font-semibold';
+        if (qty <= 5) return 'text-amber-600 font-bold';
+        return 'text-green-600 font-bold';
     };
 
     if (loading) {
@@ -282,7 +282,7 @@ export function LocationStockView() {
                                         
                                         return (
                                             <td key={loc.id} className="px-3 py-3 text-center">
-                                                <span className={`text-sm ${getQtyColor(qty)}`}>
+                                                <span className={`text-sm font-bold ${getQtyColor(qty)}`}>
                                                     {qty === 0 ? (viewMode === 'units' ? '0' : '-') : displayVal}
                                                 </span>
                                             </td>

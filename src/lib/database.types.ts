@@ -385,6 +385,16 @@ export type Database = {
           neighborhood: string | null
           city: string | null
           state: string | null
+          street?: string | null
+          exterior_number?: string | null
+          interior_number?: string | null
+          zip_code?: string | null
+          postal_code?: string | null
+          branch_name?: string | null
+          is_single_branch?: boolean
+          master_account_id?: string | null
+          pricing_tier?: number
+          cfdi?: string | null
           consolidation_parent_id: string | null
           account_number: number | null
           is_master_account: boolean
@@ -394,6 +404,8 @@ export type Database = {
           suspension_start_date: string | null
           suspension_end_date: string | null
           suspension_reason: string | null
+          alta_date?: string | null
+          reactivation_date?: string | null
           birth_date: string | null
           annual_fee_due_date: string | null
           annuity_month: number | null
@@ -423,6 +435,19 @@ export type Database = {
           account_type?: string
           billing_preference?: string
           billing_cycle?: string
+          neighborhood?: string | null
+          city?: string | null
+          state?: string | null
+          street?: string | null
+          exterior_number?: string | null
+          interior_number?: string | null
+          zip_code?: string | null
+          postal_code?: string | null
+          branch_name?: string | null
+          is_single_branch?: boolean
+          master_account_id?: string | null
+          pricing_tier?: number
+          cfdi?: string | null
           consolidation_parent_id?: string | null
           account_number?: number | null
           is_master_account?: boolean
@@ -432,6 +457,8 @@ export type Database = {
           suspension_start_date?: string | null
           suspension_end_date?: string | null
           suspension_reason?: string | null
+          alta_date?: string | null
+          reactivation_date?: string | null
           birth_date?: string | null
           annual_fee_due_date?: string | null
           annuity_month?: number | null
@@ -461,6 +488,19 @@ export type Database = {
           account_type?: string
           billing_preference?: string
           billing_cycle?: string
+          neighborhood?: string | null
+          city?: string | null
+          state?: string | null
+          street?: string | null
+          exterior_number?: string | null
+          interior_number?: string | null
+          zip_code?: string | null
+          postal_code?: string | null
+          branch_name?: string | null
+          is_single_branch?: boolean
+          master_account_id?: string | null
+          pricing_tier?: number
+          cfdi?: string | null
           consolidation_parent_id?: string | null
           account_number?: number | null
           is_master_account?: boolean
@@ -470,6 +510,8 @@ export type Database = {
           suspension_start_date?: string | null
           suspension_end_date?: string | null
           suspension_reason?: string | null
+          alta_date?: string | null
+          reactivation_date?: string | null
           birth_date?: string | null
           annual_fee_due_date?: string | null
           annuity_month?: number | null

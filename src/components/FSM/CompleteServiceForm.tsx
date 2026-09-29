@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { CardValidationService } from '../../services/CardValidationService';
 import { supabase } from '../../lib/supabase';
 import { QRScannerModal } from '../CRM/QRScannerModal';
+import { useTaxRate } from '../../hooks/useTaxRate';
 import {
   CheckCircle2,
   DollarSign,
@@ -78,6 +79,7 @@ export function CompleteServiceForm({
   onClose,
   onSuccess
 }: CompleteServiceFormProps) {
+  const { taxRate, taxDecimal, taxMultiplier, calculateTax, calculateTotalWithTax } = useTaxRate();
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const [loading, setLoading] = useState(false);
   const [loadingEquipment, setLoadingEquipment] = useState(true);
@@ -852,8 +854,8 @@ export function CompleteServiceForm({
   const createInvoice = async (serviceOrder: any, completedAt: string) => {
     try {
       const invoiceNumber = `INV-${serviceOrder.order_number}`;
-      const taxAmount = currentTotalCost * 0.16;
-      const totalAmount = currentTotalCost * 1.16;
+      const taxAmount = calculateTax(currentTotalCost);
+      const totalAmount = calculateTotalWithTax(currentTotalCost);
 
       const baseTotalMaterials = equipmentMaterials.reduce((sum, m) => {
         const price = m.inventory_items?.base_price_mxn ?? m.unit_cost ?? 0;
@@ -1133,13 +1135,13 @@ export function CompleteServiceForm({
                       )}
 
                       <div className="flex items-center justify-between py-1 mt-1">
-                        <span className="text-gray-600">IVA (16%):</span>
-                        <span className="font-semibold text-gray-900">${(calculatedTotalCost * 0.16).toFixed(2)}</span>
+                        <span className="text-gray-600">IVA ({taxRate}%):</span>
+                        <span className="font-semibold text-gray-900">${calculateTax(calculatedTotalCost).toFixed(2)}</span>
                       </div>
 
                       <div className="flex items-center justify-between pt-3 mt-2 border-t-2 border-blue-300">
                         <span className="text-lg font-bold text-gray-900">Total a Pagar / Cuenta Final:</span>
-                        <span className="text-2xl font-bold text-blue-600">${(calculatedTotalCost * 1.16).toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-blue-600">${calculateTotalWithTax(calculatedTotalCost).toFixed(2)}</span>
                       </div>
                     </>
                   );
@@ -1218,7 +1220,7 @@ export function CompleteServiceForm({
                           type="number"
                           value={partialPayment || ''}
                           onChange={(e) => setPartialPayment(Number(e.target.value))}
-                          max={currentTotalCost * 1.16}
+                          max={calculateTotalWithTax(currentTotalCost)}
                           min={0}
                           step="0.01"
                           className="w-full pl-8 pr-4 py-3 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-lg font-semibold"
@@ -1226,8 +1228,8 @@ export function CompleteServiceForm({
                         />
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        Total con IVA: ${(currentTotalCost * 1.16).toFixed(2)} |
-                        Saldo pendiente: ${((currentTotalCost * 1.16) - partialPayment).toFixed(2)}
+                        Total con IVA: ${calculateTotalWithTax(currentTotalCost).toFixed(2)} |
+                        Saldo pendiente: ${(calculateTotalWithTax(currentTotalCost) - partialPayment).toFixed(2)}
                       </p>
                     </div>
 
@@ -1239,7 +1241,7 @@ export function CompleteServiceForm({
                         </div>
                         <div className="flex justify-between sm:justify-start">
                           <span className="text-gray-600">Deuda restante:</span>
-                          <span className="ml-2 font-bold text-red-600">${((currentTotalCost * 1.16) - partialPayment).toFixed(2)}</span>
+                          <span className="ml-2 font-bold text-red-600">${(calculateTotalWithTax(currentTotalCost) - partialPayment).toFixed(2)}</span>
                         </div>
                       </div>
                     </div>

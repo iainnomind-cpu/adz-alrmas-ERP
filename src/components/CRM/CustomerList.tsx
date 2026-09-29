@@ -8,6 +8,7 @@ import { CustomerProfile360 } from './CustomerProfile360';
 import { NewCustomerForm } from './NewCustomerForm';
 import { CustomerGeneratorModal } from './CustomerGeneratorModal';
 import { formatCustomerAccountNumber } from '../../utils/customerAccountNumber';
+import { isAlarmSystem } from '../../constants/systemTypes';
 import type { Database as DB } from '../../lib/database.types';
 
 type Customer = Database['public']['Tables']['customers']['Row'] & {
@@ -68,6 +69,68 @@ interface CustomerFilters {
   communicatorModel: string;
 }
 
+const DEFAULT_MONITORING_PLANS = [
+  { id: '1', plan_name: 'Clásico' },
+  { id: '2', plan_name: 'Plus' },
+  { id: '3', plan_name: 'Plus con 15' },
+  { id: '4', plan_name: 'Plus con 20' },
+  { id: '5', plan_name: 'Medical' },
+  { id: '6', plan_name: 'App' },
+  { id: '7', plan_name: 'GPS' },
+  { id: '8', plan_name: 'Driver' },
+];
+
+const DYNAMIC_COLOR_PALETTES = [
+  { bg: 'bg-amber-100', border: 'border-amber-400', text: 'text-amber-800' },
+  { bg: 'bg-blue-100', border: 'border-blue-400', text: 'text-blue-800' },
+  { bg: 'bg-indigo-100', border: 'border-indigo-400', text: 'text-indigo-800' },
+  { bg: 'bg-purple-100', border: 'border-purple-400', text: 'text-purple-800' },
+  { bg: 'bg-emerald-100', border: 'border-emerald-400', text: 'text-emerald-800' },
+  { bg: 'bg-cyan-100', border: 'border-cyan-400', text: 'text-cyan-800' },
+  { bg: 'bg-fuchsia-100', border: 'border-fuchsia-400', text: 'text-fuchsia-800' },
+  { bg: 'bg-teal-100', border: 'border-teal-400', text: 'text-teal-800' },
+  { bg: 'bg-rose-100', border: 'border-rose-400', text: 'text-rose-800' },
+  { bg: 'bg-lime-100', border: 'border-lime-400', text: 'text-lime-800' },
+  { bg: 'bg-sky-100', border: 'border-sky-400', text: 'text-sky-800' },
+  { bg: 'bg-violet-100', border: 'border-violet-400', text: 'text-violet-800' },
+];
+
+function getPlanColor(planName: string) {
+  const norm = (planName || '').toLowerCase().trim();
+  if (norm.includes('clásico') || norm.includes('clasico')) {
+    return { bg: 'bg-amber-100', border: 'border-amber-400', text: 'text-amber-800' };
+  }
+  if (norm.includes('plus con 15') || (norm.includes('plus') && norm.includes('15'))) {
+    return { bg: 'bg-indigo-100', border: 'border-indigo-400', text: 'text-indigo-800' };
+  }
+  if (norm.includes('plus con 20') || (norm.includes('plus') && norm.includes('20'))) {
+    return { bg: 'bg-purple-100', border: 'border-purple-400', text: 'text-purple-800' };
+  }
+  if (norm === 'plus' || norm.startsWith('plus')) {
+    return { bg: 'bg-blue-100', border: 'border-blue-400', text: 'text-blue-800' };
+  }
+  if (norm.includes('medical')) {
+    return { bg: 'bg-emerald-100', border: 'border-emerald-400', text: 'text-emerald-800' };
+  }
+  if (norm.includes('app')) {
+    return { bg: 'bg-cyan-100', border: 'border-cyan-400', text: 'text-cyan-800' };
+  }
+  if (norm.includes('gps')) {
+    return { bg: 'bg-fuchsia-100', border: 'border-fuchsia-400', text: 'text-fuchsia-800' };
+  }
+  if (norm.includes('driver')) {
+    return { bg: 'bg-teal-100', border: 'border-teal-400', text: 'text-teal-800' };
+  }
+
+  // Asignación determinista para nuevos planes creados en la base de datos
+  let hash = 0;
+  for (let i = 0; i < norm.length; i++) {
+    hash = norm.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % DYNAMIC_COLOR_PALETTES.length;
+  return DYNAMIC_COLOR_PALETTES[index];
+}
+
 interface CustomerListProps {
   systemType?: string;
 }
@@ -113,10 +176,31 @@ export function CustomerList({ systemType }: CustomerListProps) {
   const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
+  const [monitoringPlansList, setMonitoringPlansList] = useState<{ id?: string; plan_name: string }[]>(DEFAULT_MONITORING_PLANS);
 
   useEffect(() => {
     loadLocationData();
+    loadMonitoringPlans();
   }, []);
+
+  const loadMonitoringPlans = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('monitoring_plans')
+        .select('id, plan_name, is_active')
+        .order('plan_name');
+
+      if (!error && data && data.length > 0) {
+        const active = data.filter((p: any) => p.is_active !== false);
+        setMonitoringPlansList(active.length > 0 ? active : data);
+      } else {
+        setMonitoringPlansList(DEFAULT_MONITORING_PLANS);
+      }
+    } catch (err) {
+      console.error('Error loading monitoring plans:', err);
+      setMonitoringPlansList(DEFAULT_MONITORING_PLANS);
+    }
+  };
 
   useEffect(() => {
     setCustomers([]);
@@ -345,27 +429,27 @@ export function CustomerList({ systemType }: CustomerListProps) {
   }, []);
 
   const getCustomerColor = (customer: Customer): string => {
-    if (customer.migrated_to_company) return 'bg-green-50 border-green-300';
-    if (customer.status === 'cancelled') return 'bg-gray-50 border-gray-300';
-    if (customer.is_consolidated_account) return 'bg-gray-900 text-white border-gray-900';
-    if (customer.is_master_account || (customer.service_count && customer.service_count > 2)) return 'bg-yellow-50 border-yellow-400';
+    const isCancelled = customer.status === 'cancelled' || customer.status === 'cancelado' || customer.status === 'cancelada';
+    if (isCancelled) return 'bg-rose-50 border-rose-300';
 
-    if (customer.service_plan === 'premium') return 'bg-purple-50 border-purple-300';
-
-    if (customer.service_plan?.includes('plus') ||
-      customer.service_plan?.includes('comunicador') ||
-      customer.connection_technology === 'dual' ||
-      customer.connection_technology === 'ip') {
-      return 'bg-blue-50 border-blue-300';
+    const accountType = (customer.account_type || '').toLowerCase().trim();
+    if (customer.is_master_account || accountType === 'master' || accountType === 'maestra') {
+      return 'bg-purple-50 border-purple-300';
+    }
+    if (customer.is_consolidated_account || accountType.includes('consolid')) {
+      return 'bg-cyan-50 border-cyan-300';
+    }
+    if (accountType.includes('corporat')) {
+      return 'bg-indigo-50 border-indigo-300';
+    }
+    if (accountType.includes('demo') || (customer.billing_preference || '').toLowerCase().includes('demo')) {
+      return 'bg-amber-50 border-amber-300';
+    }
+    if (accountType.includes('gratis') || accountType.includes('free')) {
+      return 'bg-emerald-50 border-emerald-300';
     }
 
-    if (customer.service_plan === 'basico' ||
-      customer.service_plan === 'clasico' ||
-      customer.connection_technology === 'telefono') {
-      return 'bg-orange-50 border-orange-300';
-    }
-
-    return 'bg-white border-gray-200';
+    return 'bg-blue-50/40 border-blue-200';
   };
 
   const getPaymentStatusColor = (customer: Customer): string => {
@@ -619,24 +703,26 @@ export function CustomerList({ systemType }: CustomerListProps) {
                 </select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Plan de Monitoreo</label>
-                <select
-                  value={filters.monitoringPlan}
-                  onChange={(e) => setFilters({ ...filters, monitoringPlan: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">Todos</option>
-                  <option value="plus_clasico">Plus Clásico</option>
-                  <option value="plus_premium">Plus Premium</option>
-                  <option value="premium_com_15">Premium Com. $15</option>
-                  <option value="premium_com_20">Premium Com. $20</option>
-                  <option value="plus_com_15">Plus Com. $15</option>
-                  <option value="plus_com_20">Plus Com. $20</option>
-                  <option value="medical_premium">Medical Premium</option>
-                  <option value="boton_panico">Botón de Pánico</option>
-                </select>
-              </div>
+              {isAlarmSystem(systemType) && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Plan de Monitoreo</label>
+                  <select
+                    value={filters.monitoringPlan}
+                    onChange={(e) => setFilters({ ...filters, monitoringPlan: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="plus_clasico">Plus Clásico</option>
+                    <option value="plus_premium">Plus Premium</option>
+                    <option value="premium_com_15">Premium Com. $15</option>
+                    <option value="premium_com_20">Premium Com. $20</option>
+                    <option value="plus_com_15">Plus Com. $15</option>
+                    <option value="plus_com_20">Plus Com. $20</option>
+                    <option value="medical_premium">Medical Premium</option>
+                    <option value="boton_panico">Botón de Pánico</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Preferencia de Facturación</label>
@@ -668,21 +754,23 @@ export function CustomerList({ systemType }: CustomerListProps) {
                 </select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Tecnología de Comunicación</label>
-                <select
-                  value={filters.communicationTech}
-                  onChange={(e) => setFilters({ ...filters, communicationTech: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">Todas</option>
-                  <option value="telefono">Teléfono</option>
-                  <option value="ip">IP</option>
-                  <option value="dual">Dual</option>
-                  <option value="celular">Celular</option>
-                  <option value="radio">Radio</option>
-                </select>
-              </div>
+              {isAlarmSystem(systemType) && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Tecnología de Comunicación</label>
+                  <select
+                    value={filters.communicationTech}
+                    onChange={(e) => setFilters({ ...filters, communicationTech: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Todas</option>
+                    <option value="telefono">Teléfono</option>
+                    <option value="ip">IP</option>
+                    <option value="dual">Dual</option>
+                    <option value="celular">Celular</option>
+                    <option value="radio">Radio</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Buró</label>
@@ -791,91 +879,114 @@ export function CustomerList({ systemType }: CustomerListProps) {
             </div>
 
             {/* Filtros de modelo/comunicador del equipo */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 bg-blue-500 rounded-full inline-block"></span>
-                Filtros por Equipo (Activos instalados)
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Modelo de Alarma</label>
-                  <input
-                    type="text"
-                    value={filters.alarmModel}
-                    onChange={(e) => setFilters({ ...filters, alarmModel: e.target.value })}
-                    placeholder="Ej. Neo, Power Series, Vista..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+            {isAlarmSystem(systemType) && (
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full inline-block"></span>
+                  Filtros por Equipo (Activos instalados)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Modelo de Alarma</label>
+                    <input
+                      type="text"
+                      value={filters.alarmModel}
+                      onChange={(e) => setFilters({ ...filters, alarmModel: e.target.value })}
+                      placeholder="Ej. Neo, Power Series, Vista..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Modelo de Comunicador</label>
-                  <input
-                    type="text"
-                    value={filters.communicatorModel}
-                    onChange={(e) => setFilters({ ...filters, communicatorModel: e.target.value })}
-                    placeholder="Ej. Cenor, TL280, IP150..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Modelo de Comunicador</label>
+                    <input
+                      type="text"
+                      value={filters.communicatorModel}
+                      onChange={(e) => setFilters({ ...filters, communicatorModel: e.target.value })}
+                      placeholder="Ej. Cenor, TL280, IP150..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  ⚠️ Estos filtros buscan en los activos instalados del cliente. Solo se mostrarán clientes que tengan al menos un activo que coincida.
+                </p>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                ⚠️ Estos filtros buscan en los activos instalados del cliente. Solo se mostrarán clientes que tengan al menos un activo que coincida.
-              </p>
-            </div>
+            )}
           </div>
         )}
 
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h4 className="font-semibold text-gray-900 mb-3">Leyenda de Colores</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-orange-50 border-2 border-orange-300 rounded"></div>
-              <span>Plan Clásico</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-purple-50 border-2 border-purple-300 rounded"></div>
-              <span>Plan Premium</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-50 border-2 border-blue-300 rounded"></div>
-              <span>Planes con Comunicador</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-yellow-50 border-2 border-yellow-400 rounded"></div>
-              <span>Cuenta Maestra</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-900 border-2 border-gray-900 rounded"></div>
-              <span>Consolidada</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-50 border-2 border-gray-300 rounded"></div>
-              <span>Cancelada</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-green-50 border-2 border-green-300 rounded"></div>
-              <span>Migrado</span>
+        <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-3">Leyenda de Colores: Tipos de Cuenta</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-purple-100 border-2 border-purple-500 rounded"></div>
+                <span className="font-medium text-gray-700">Maestra</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-cyan-100 border-2 border-cyan-500 rounded"></div>
+                <span className="font-medium text-gray-700">Consolidada</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-blue-100 border-2 border-blue-500 rounded"></div>
+                <span className="font-medium text-gray-700">Normal</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-indigo-100 border-2 border-indigo-500 rounded"></div>
+                <span className="font-medium text-gray-700">Corporativa</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-amber-100 border-2 border-amber-500 rounded"></div>
+                <span className="font-medium text-gray-700">Demo</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-emerald-100 border-2 border-emerald-500 rounded"></div>
+                <span className="font-medium text-gray-700">Gratis</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-rose-100 border-2 border-rose-500 rounded"></div>
+                <span className="font-medium text-gray-700">Cancelada</span>
+              </div>
             </div>
           </div>
 
-          <h5 className="font-semibold text-gray-900 mt-4 mb-2">Estados de Pago</h5>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-green-100 rounded"></div>
-              <span>Puntual</span>
+          {isAlarmSystem(systemType) && (
+            <div className="border-t border-gray-100 pt-3">
+              <h4 className="font-semibold text-gray-900 mb-3">Leyenda de Colores: Planes</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3 text-xs">
+                {monitoringPlansList.map((plan) => {
+                  const color = getPlanColor(plan.plan_name);
+                  return (
+                    <div key={plan.id || plan.plan_name} className="flex items-center gap-2">
+                      <div className={`w-4 h-4 ${color.bg} border-2 ${color.border} rounded flex-shrink-0`}></div>
+                      <span className="font-medium text-gray-700 truncate">{plan.plan_name}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-red-100 rounded"></div>
-              <span>Moroso</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-100 rounded"></div>
-              <span>Cancelado</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-lime-100 rounded"></div>
-              <span>Suspendido</span>
+          )}
+
+          <div className="border-t border-gray-100 pt-3">
+            <h5 className="font-semibold text-gray-900 mb-2">Estados de Pago</h5>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-100 rounded"></div>
+                <span>Puntual</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-red-100 rounded"></div>
+                <span>Moroso</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gray-100 rounded"></div>
+                <span>Cancelado</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-lime-100 rounded"></div>
+                <span>Suspendido</span>
+              </div>
             </div>
           </div>
         </div>
@@ -896,12 +1007,11 @@ export function CustomerList({ systemType }: CustomerListProps) {
               {customers.map((customer) => (
                 <div
                   key={customer.id}
-                  className={`p-4 rounded-lg border-2 transition-all hover:shadow-md ${getCustomerColor(customer)} ${customer.is_consolidated_account ? 'text-white' : ''
-                    }`}
+                  className={`p-4 rounded-lg border-2 transition-all hover:shadow-md ${getCustomerColor(customer)}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className={`p-2 rounded-lg ${customer.is_consolidated_account ? 'bg-white/20' : 'bg-gray-100'}`}>
+                      <div className="p-2 rounded-lg bg-gray-100">
                         {getTypeIcon(customer.customer_type)}
                       </div>
 
@@ -988,7 +1098,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                          {customer.service_plan && (
+                          {isAlarmSystem(customer.system_type || systemType) && customer.service_plan && (
                             <span className={`px-2 py-1 rounded text-xs font-medium ${customer.service_plan === 'premium'
                               ? 'bg-purple-600 text-white'
                               : customer.service_plan === 'basico' || customer.service_plan === 'clasico'
@@ -1001,7 +1111,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
                             </span>
                           )}
 
-                          {customer.connection_technology && (
+                          {isAlarmSystem(customer.system_type || systemType) && customer.connection_technology && (
                             <span className={`px-2 py-1 rounded text-xs font-medium ${getTechColor(customer.connection_technology)}`}>
                               <Wifi className="w-3 h-3 inline mr-1" />
                               {customer.connection_technology.toUpperCase()}

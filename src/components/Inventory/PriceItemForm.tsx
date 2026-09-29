@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, type PriceListItem } from '../../lib/supabase';
+import { useTaxRate } from '../../hooks/useTaxRate';
 import {
     X, Save, Loader2, AlertCircle, Package, DollarSign,
     Percent, Tag, Battery, Wifi, ClipboardList, Info, ShoppingCart
@@ -71,6 +72,7 @@ const BATTERY_LABELS: Record<BatteryType, string> = {
 };
 
 export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) {
+    const { taxRate } = useTaxRate();
     const isEditing = !!item;
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -102,7 +104,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         internal_notes: item?.internal_notes || '',
         is_active: item?.is_active ?? true,
         has_tax: item?.has_tax ?? true,
-        tax_rate: item?.tax_rate?.toString() || '16',
+        tax_rate: item?.tax_rate !== undefined && item?.tax_rate !== null ? item.tax_rate.toString() : taxRate.toString(),
         location_id: item?.location_id || ''
     });
 
@@ -724,7 +726,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                                 value={formData.tax_rate}
                                                 onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })}
                                                 className="w-full pl-4 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                                                placeholder="16.00"
+                                                placeholder={taxRate.toFixed(2)}
                                             />
                                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
                                         </div>

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
 import { MasterAccountManager } from './MasterAccountManager';
+import { isAlarmSystem } from '../../constants/systemTypes';
 import { CustomerObservations } from './CustomerObservations';
 import { CustomerHistory } from './CustomerHistory';
 import { SuspensionManager } from './SuspensionManager';
@@ -35,7 +36,14 @@ import { DigitalCardsManager } from './DigitalCardsManager';
 import { AssetDetailView } from '../Assets/AssetDetailView';
 import { formatCustomerAccountNumber } from '../../utils/customerAccountNumber';
 
-type Customer = Database['public']['Tables']['customers']['Row'];
+type Customer = Database['public']['Tables']['customers']['Row'] & {
+  alta_date?: string | null;
+  suspension_start_date?: string | null;
+  suspension_end_date?: string | null;
+  suspension_reason?: string | null;
+  reactivation_date?: string | null;
+  cancellation_date?: string | null;
+};
 type Contact = Database['public']['Tables']['customer_contacts']['Row'];
 type Equipment = Database['public']['Tables']['customer_equipment']['Row'] & {
   technicians: { full_name: string } | null;
@@ -473,12 +481,14 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                         </span>
                       </div>
 
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Tecnología de Comunicación</p>
-                        <span className="inline-block px-3 py-1 bg-cyan-100 text-cyan-800 rounded-full text-sm font-medium capitalize">
-                          {customer.communication_tech}
-                        </span>
-                      </div>
+                      {isAlarmSystem(customer.system_type) && customer.communication_tech && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Tecnología de Comunicación</p>
+                          <span className="inline-block px-3 py-1 bg-cyan-100 text-cyan-800 rounded-full text-sm font-medium capitalize">
+                            {customer.communication_tech}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -553,7 +563,7 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                   </div>
                 )}
 
-                {subscription && (
+                {isAlarmSystem(customer.system_type) && subscription && (
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6">
                     <h3 className="font-semibold text-gray-900 text-lg mb-4 flex items-center gap-2">
                       <Shield className="w-5 h-5 text-blue-600" />
@@ -575,6 +585,48 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                     </div>
                   </div>
                 )}
+
+                {/* Fechas de Control del Ciclo de Vida */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                  <h3 className="font-semibold text-gray-900 text-lg mb-4 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                    Fechas de Control y Ciclo de Vida
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="bg-white p-3.5 rounded-lg border border-slate-200">
+                      <span className="text-xs text-slate-500 font-medium block mb-1">Fecha de Alta</span>
+                      <p className="font-bold text-gray-900">
+                        {customer.alta_date ? new Date(customer.alta_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) : (customer.created_at ? new Date(customer.created_at).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No registrada')}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-lg border border-slate-200">
+                      <span className="text-xs text-slate-500 font-medium block mb-1">Fecha de Suspensión</span>
+                      <p className="font-bold text-gray-900">
+                        {customer.suspension_start_date ? new Date(customer.suspension_start_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No aplica / Activa'}
+                      </p>
+                      {customer.suspension_end_date && (
+                        <p className="text-xs text-blue-600 font-semibold mt-1">
+                          Fin programado: {new Date(customer.suspension_end_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-lg border border-slate-200">
+                      <span className="text-xs text-slate-500 font-medium block mb-1">Fecha de Reanudación</span>
+                      <p className="font-bold text-gray-900">
+                        {customer.reactivation_date ? new Date(customer.reactivation_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Sin reactivaciones'}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-lg border border-slate-200">
+                      <span className="text-xs text-slate-500 font-medium block mb-1">Fecha de Cancelación</span>
+                      <p className="font-bold text-gray-900">
+                        {customer.cancellation_date ? new Date(customer.cancellation_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Sin cancelación'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -704,7 +756,9 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                                   'text-gray-600'
                                 }`} />
                               <h4 className="font-semibold text-gray-900">
-                                {asset.alarm_model || asset.keyboard_model || asset.communicator_model || 'Equipo'}
+                                {isAlarmSystem(customer.system_type)
+                                  ? (asset.alarm_model || asset.keyboard_model || asset.communicator_model || asset.name || 'Equipo de Alarma')
+                                  : (asset.name || asset.model || asset.alarm_model || 'Equipo')}
                               </h4>
                             </div>
                             <div className="flex items-center gap-2">
@@ -720,23 +774,34 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                             </div>
                           </div>
                           <div className="space-y-2 text-sm">
-                            {asset.alarm_model && (
-                              <div>
-                                <p className="text-gray-600 text-xs">Panel</p>
-                                <p className="text-gray-900 font-medium">{asset.alarm_model}</p>
-                              </div>
-                            )}
-                            {asset.keyboard_model && (
-                              <div>
-                                <p className="text-gray-600 text-xs">Teclado</p>
-                                <p className="text-gray-900 font-medium">{asset.keyboard_model}</p>
-                              </div>
-                            )}
-                            {asset.communicator_model && (
-                              <div>
-                                <p className="text-gray-600 text-xs">Comunicador</p>
-                                <p className="text-gray-900 font-medium">{asset.communicator_model}</p>
-                              </div>
+                            {isAlarmSystem(customer.system_type) ? (
+                              <>
+                                {asset.alarm_model && (
+                                  <div>
+                                    <p className="text-gray-600 text-xs">Panel</p>
+                                    <p className="text-gray-900 font-medium">{asset.alarm_model}</p>
+                                  </div>
+                                )}
+                                {asset.keyboard_model && (
+                                  <div>
+                                    <p className="text-gray-600 text-xs">Teclado</p>
+                                    <p className="text-gray-900 font-medium">{asset.keyboard_model}</p>
+                                  </div>
+                                )}
+                                {asset.communicator_model && (
+                                  <div>
+                                    <p className="text-gray-600 text-xs">Comunicador</p>
+                                    <p className="text-gray-900 font-medium">{asset.communicator_model}</p>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              (asset.model || asset.name || asset.alarm_model) && (
+                                <div>
+                                  <p className="text-gray-600 text-xs">Modelo / Dispositivo</p>
+                                  <p className="text-gray-900 font-medium">{asset.model || asset.name || asset.alarm_model}</p>
+                                </div>
+                              )
                             )}
                             {asset.serial_number && (
                               <p className="text-gray-600 font-mono text-xs">S/N: {asset.serial_number}</p>

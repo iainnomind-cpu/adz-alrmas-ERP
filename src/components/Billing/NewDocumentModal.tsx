@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
     X, FileText, DollarSign, Search,
-    AlertCircle, Loader2, AlertTriangle, Clock, CreditCard
+    AlertCircle, Loader2, AlertTriangle, Clock, CreditCard,
+    Package, Shield, Activity, Wrench, Car, Sparkles
 } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
+import { useTaxRate } from '../../hooks/useTaxRate';
 
 interface PendingDebt {
     id: string;
@@ -27,6 +29,7 @@ interface NewDocumentModalProps {
 }
 
 export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModalProps) {
+    const { taxRate, taxDecimal, taxMultiplier, calculateSubtotalFromNet, calculateTaxFromNet } = useTaxRate();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -50,18 +53,63 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
         due_date: new Date().toISOString().split('T')[0],
         concept: '',
         description: '',
-        subtotal: 0,
-        tax_rate: 0.16, // Default 16%
-        tax: 0,
+        net_price: 0, // Precio neto con IVA incluido
+        subtotal: 0,  // Precio neto ÷ (1 + tax_rate)
+        tax_rate: taxDecimal, // Dinámico según configuración
+        tax: 0,       // Precio neto − Subtotal
         discount: 0,
         payment_status: 'pending' // Default pending
     });
 
-    // Derived Total
-    const total = formData.subtotal + (formData.subtotal > 0 ? formData.tax : 0) - formData.discount;
+    // Inventory & Catalog State
+    const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+    const [loadingInventory, setLoadingInventory] = useState(false);
+    const [loadingFolio, setLoadingFolio] = useState(false);
+
+    // Derived Total (exactamente igual al precio neto capturado menos descuento)
+    const total = Number(Math.max(0, (formData.net_price || (formData.subtotal + formData.tax)) - (formData.discount || 0)).toFixed(2));
+
+    // Generador de folio consecutivo automático con prefijo APP-XXXX
+    const getNextAppFolio = async (): Promise<string> => {
+        try {
+            const { data } = await supabase
+                .from('billing_documents')
+                .select('folio')
+                .ilike('folio', 'APP%');
+
+            let maxNumber = 0;
+            if (data && data.length > 0) {
+                for (const item of data) {
+                    if (item.folio) {
+                        const match = item.folio.match(/^APP[-]?(\d+)/i);
+                        if (match && match[1]) {
+                            const num = parseInt(match[1], 10);
+                            if (!isNaN(num) && num > maxNumber) {
+                                maxNumber = num;
+                            }
+                        }
+                    }
+                }
+            }
+            return `APP-${String(maxNumber + 1).padStart(4, '0')}`;
+        } catch (e) {
+            console.error('Error calculando folio APP consecutivo:', e);
+            return 'APP-0001';
+        }
+    };
+
+    const loadNextFolio = async () => {
+        setLoadingFolio(true);
+        const nextFolio = await getNextAppFolio();
+        setFormData(prev => ({
+            ...prev,
+            folio: nextFolio
+        }));
+        setLoadingFolio(false);
+    };
 
     useEffect(() => {
-        // Reset state when modal opens
+        // Reset state and load inventory when modal opens
         if (isOpen) {
             setFormData({
                 folio: '',
@@ -70,8 +118,9 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                 due_date: new Date().toISOString().split('T')[0],
                 concept: '',
                 description: '',
+                net_price: 0,
                 subtotal: 0,
-                tax_rate: 0.16,
+                tax_rate: taxDecimal,
                 tax: 0,
                 discount: 0,
                 payment_status: 'pending'
@@ -81,14 +130,165 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
             setCustomers([]);
             setError(null);
             setPendingDebts([]);
+            loadInventoryItems();
+            loadNextFolio();
         }
-    }, [isOpen]);
+    }, [isOpen, taxDecimal]);
 
-    // Recalculate tax when subtotal or rate changes
-    useEffect(() => {
-        const calculatedTax = formData.subtotal * formData.tax_rate;
-        setFormData(prev => ({ ...prev, tax: calculatedTax }));
-    }, [formData.subtotal, formData.tax_rate]);
+    const loadInventoryItems = async () => {
+        try {
+            setLoadingInventory(true);
+            const { data, error } = await supabase
+                .from('price_list')
+                .select('id, code, name, description, brand, model, category, base_price_mxn, price_with_tax_mxn, stock_quantity, is_active')
+                .eq('is_active', true)
+                .order('name');
+
+            if (!error && data) {
+                setInventoryItems(data);
+            }
+        } catch (err) {
+            console.error('Error loading inventory items:', err);
+        } finally {
+            setLoadingInventory(false);
+        }
+    };
+
+    // 1. Materiales de Instalación disponibles en inventario
+    const installationMaterials = useMemo(() => {
+        return inventoryItems.filter(item => {
+            const cat = (item.category || '').toLowerCase();
+            const name = (item.name || '').toLowerCase();
+            return ['material', 'materiales', 'accesorio', 'accesorios', 'consumible', 'insumo'].includes(cat) ||
+                   (name.includes('cable') || name.includes('conector') || name.includes('tubo') || name.includes('cinta') || name.includes('taquete') || name.includes('tornillo') || name.includes('fuente') || name.includes('gabinete') || name.includes('bater'));
+        });
+    }, [inventoryItems]);
+
+    // 2. Dispositivos disponibles en inventario
+    const devices = useMemo(() => {
+        return inventoryItems.filter(item => {
+            const cat = (item.category || '').toLowerCase();
+            const name = (item.name || '').toLowerCase();
+            return ['dispositivo', 'dispositivos', 'sensor', 'sensores', 'panel', 'paneles', 'alarm', 'alarma', 'teclado', 'sirena', 'camera', 'camara', 'comunicador', 'device', 'equipo', 'equipos'].includes(cat) ||
+                   (name.includes('panel') || name.includes('sensor') || name.includes('sirena') || name.includes('teclado') || name.includes('cámara') || name.includes('camara') || name.includes('dvr') || name.includes('nvr') || name.includes('transmisor') || name.includes('control') || name.includes('chapa') || name.includes('foco') || name.includes('estrob'));
+        });
+    }, [inventoryItems]);
+
+    // 3. Servicios de Monitoreo disponibles en inventario
+    const monitoringServices = useMemo(() => {
+        return inventoryItems.filter(item => {
+            const cat = (item.category || '').toLowerCase();
+            const name = (item.name || '').toLowerCase();
+            return ['monitoreo', 'monitoring', 'anualidad', 'mensualidad', 'servicio_monitoreo'].includes(cat) ||
+                   (name.includes('monitoreo') || name.includes('anualidad') || name.includes('mensualidad') || name.includes('app alarma') || name.includes('vigilancia'));
+        });
+    }, [inventoryItems]);
+
+    // 4. Servicios Técnicos disponibles en inventario
+    const technicalServices = useMemo(() => {
+        return inventoryItems.filter(item => {
+            const cat = (item.category || '').toLowerCase();
+            const name = (item.name || '').toLowerCase();
+            return (['servicio', 'servicios', 'service', 'services', 'servicio_tecnico', 'mano_obra', 'labor', 'mantenimiento', 'soporte', 'reparacion'].includes(cat) ||
+                   (name.includes('servicio') || name.includes('mantenimiento') || name.includes('instalaci') || name.includes('mano de obra') || name.includes('soporte') || name.includes('revisi') || name.includes('programaci') || name.includes('configuraci'))) &&
+                   !name.includes('monitoreo') && !name.includes('anualidad');
+        });
+    }, [inventoryItems]);
+
+    // 5. Tipos de Visita disponibles (inventario y catálogo de tarifas)
+    const visitTypes = useMemo(() => {
+        const inventoryVisits = inventoryItems.filter(item => {
+            const cat = (item.category || '').toLowerCase();
+            const name = (item.name || '').toLowerCase();
+            return cat === 'visita' || cat === 'visit' || name.includes('visita');
+        }).map(item => ({
+            id: item.id,
+            name: item.name,
+            description: item.description || 'Visita técnica registrada en inventario',
+            price: Number(item.base_price_mxn) || Number(item.price) || 0
+        }));
+
+        const standardVisits = [
+            {
+                id: 'visit_express_30',
+                name: 'Visita Express 3.0 (hasta 30 min)',
+                description: 'Atención y revisión técnica rápida de hasta 30 minutos',
+                price: 140
+            },
+            {
+                id: 'visit_express_60',
+                name: 'Visita Express 6.0 (hasta 60 min)',
+                description: 'Atención técnica general de hasta 60 minutos',
+                price: 280
+            },
+            {
+                id: 'visit_diagnostico',
+                name: 'Visita Técnica de Diagnóstico',
+                description: 'Revisión general en sitio, detección de fallas y reporte técnico',
+                price: 280
+            },
+            {
+                id: 'visit_mantenimiento',
+                name: 'Visita de Mantenimiento Preventivo',
+                description: 'Limpieza, pruebas de comunicación, calibración de sensores y verificación de baterías',
+                price: 350
+            },
+            {
+                id: 'visit_reubicacion',
+                name: 'Visita de Reubicación / Instalación de Equipos',
+                description: 'Desmontaje, cableado y reinstalación de dispositivos en sitio',
+                price: 450
+            }
+        ];
+
+        const names = new Set(inventoryVisits.map(v => v.name.toLowerCase()));
+        const combined = [...inventoryVisits];
+        for (const v of standardVisits) {
+            if (!names.has(v.name.toLowerCase())) {
+                combined.push(v);
+            }
+        }
+        return combined;
+    }, [inventoryItems]);
+
+    // Actualización de precio neto y cálculo automático de Subtotal e IVA
+    const handleNetPriceChange = (netValue: number) => {
+        const net = Math.max(0, netValue);
+        const subtotal = calculateSubtotalFromNet(net);
+        const tax = calculateTaxFromNet(net);
+
+        setFormData(prev => ({
+            ...prev,
+            net_price: net,
+            subtotal: subtotal,
+            tax: tax,
+            tax_rate: taxDecimal
+        }));
+    };
+
+    // Selección automática y actualización del formulario con precio neto
+    const handleSelectProductOrService = (item: any, isVisitType: boolean = false) => {
+        const rawPrice = isVisitType
+            ? (Number(item.price) || 0)
+            : (Number(item.price_with_tax_mxn) || Number(item.base_price_mxn) || Number(item.price) || 0);
+
+        const netPrice = Math.max(0, rawPrice);
+        const subtotal = calculateSubtotalFromNet(netPrice);
+        const tax = calculateTaxFromNet(netPrice);
+
+        const description = item.description ||
+            (!isVisitType && (item.brand || item.model) ? `${item.brand || ''} ${item.model || ''}`.trim() : '');
+
+        setFormData(prev => ({
+            ...prev,
+            concept: item.name || prev.concept,
+            description: description || prev.description,
+            net_price: netPrice > 0 ? netPrice : prev.net_price,
+            subtotal: netPrice > 0 ? subtotal : prev.subtotal,
+            tax: netPrice > 0 ? tax : prev.tax,
+            tax_rate: taxDecimal
+        }));
+    };
 
     const handleSearch = (term: string) => {
         setSearchTerm(term);
@@ -168,11 +368,40 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
         setError(null);
 
         try {
+            let finalFolio = formData.folio.trim();
+            if (!finalFolio || finalFolio.toUpperCase().startsWith('APP')) {
+                // Verificar si el folio actual ya existe en BD para evitar duplicados concurrentes
+                const { data: existingWithFolio } = await supabase
+                    .from('billing_documents')
+                    .select('folio')
+                    .ilike('folio', 'APP%');
+
+                const isDuplicate = existingWithFolio?.some(
+                    d => d.folio?.trim().toUpperCase() === finalFolio.toUpperCase()
+                );
+
+                if (isDuplicate || !finalFolio) {
+                    let maxNum = 0;
+                    if (existingWithFolio && existingWithFolio.length > 0) {
+                        for (const item of existingWithFolio) {
+                            if (item.folio) {
+                                const match = item.folio.match(/^APP[-]?(\d+)/i);
+                                if (match && match[1]) {
+                                    const n = parseInt(match[1], 10);
+                                    if (!isNaN(n) && n > maxNum) maxNum = n;
+                                }
+                            }
+                        }
+                    }
+                    finalFolio = `APP-${String(maxNum + 1).padStart(4, '0')}`;
+                }
+            }
+
             const { error: insertError } = await supabase
                 .from('billing_documents')
                 .insert([{
                     customer_id: selectedCustomer.id,
-                    folio: formData.folio,
+                    folio: finalFolio,
                     document_type: formData.document_type,
                     issue_date: formData.issue_date,
                     due_date: formData.due_date,
@@ -354,15 +583,30 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Folio *</label>
-                            <input
-                                type="text"
-                                required
-                                value={formData.folio}
-                                onChange={(e) => setFormData({ ...formData, folio: e.target.value })}
-                                placeholder="Ej. A-001"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            />
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="block text-sm font-medium text-gray-700">Folio *</label>
+                                <span className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded font-medium">
+                                    Prefijo APP (4 dígitos)
+                                </span>
+                            </div>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    required
+                                    value={formData.folio}
+                                    onChange={(e) => setFormData({ ...formData, folio: e.target.value.toUpperCase() })}
+                                    placeholder="APP-0001"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900 tracking-wide uppercase"
+                                />
+                                {loadingFolio && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                                Consecutivo automático con formato APP-0001, APP-0002...
+                            </p>
                         </div>
 
                         <div>
@@ -388,6 +632,155 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                         </div>
                     </div>
 
+                    {/* Selectores dinámicos del Inventario y Servicios */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-blue-600" />
+                                <span className="text-sm font-semibold text-gray-800">
+                                    Cargar desde Inventario y Servicios
+                                </span>
+                            </div>
+                            <span className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full font-medium">
+                                Asigna automáticamente Concepto, Descripción y Precio
+                            </span>
+                        </div>
+
+                        {loadingInventory ? (
+                            <div className="flex items-center justify-center py-4 text-xs text-gray-500 gap-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                Cargando catálogo del inventario...
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {/* 1. Materiales de instalación */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <Package className="w-3.5 h-3.5 text-amber-600" />
+                                        Materiales de Instalación
+                                        <span className="text-gray-400 font-normal">({installationMaterials.length})</span>
+                                    </label>
+                                    <select
+                                        onChange={(e) => {
+                                            const item = installationMaterials.find(i => i.id === e.target.value);
+                                            if (item) handleSelectProductOrService(item, false);
+                                            e.target.value = "";
+                                        }}
+                                        defaultValue=""
+                                        className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                                    >
+                                        <option value="" disabled>-- Seleccionar material --</option>
+                                        {installationMaterials.map(item => (
+                                            <option key={item.id} value={item.id}>
+                                                {item.name} {item.code ? `[${item.code}]` : ''} - ${(Number(item.base_price_mxn) || Number(item.price) || 0).toFixed(2)} (Stock: {item.stock_quantity ?? 0})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 2. Dispositivos */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <Shield className="w-3.5 h-3.5 text-blue-600" />
+                                        Dispositivos
+                                        <span className="text-gray-400 font-normal">({devices.length})</span>
+                                    </label>
+                                    <select
+                                        onChange={(e) => {
+                                            const item = devices.find(i => i.id === e.target.value);
+                                            if (item) handleSelectProductOrService(item, false);
+                                            e.target.value = "";
+                                        }}
+                                        defaultValue=""
+                                        className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                                    >
+                                        <option value="" disabled>-- Seleccionar dispositivo --</option>
+                                        {devices.map(item => (
+                                            <option key={item.id} value={item.id}>
+                                                {item.name} {item.code ? `[${item.code}]` : ''} - ${(Number(item.base_price_mxn) || Number(item.price) || 0).toFixed(2)} (Stock: {item.stock_quantity ?? 0})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 3. Servicios de monitoreo */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <Activity className="w-3.5 h-3.5 text-emerald-600" />
+                                        Servicios de Monitoreo
+                                        <span className="text-gray-400 font-normal">({monitoringServices.length})</span>
+                                    </label>
+                                    <select
+                                        onChange={(e) => {
+                                            const item = monitoringServices.find(i => i.id === e.target.value);
+                                            if (item) handleSelectProductOrService(item, false);
+                                            e.target.value = "";
+                                        }}
+                                        defaultValue=""
+                                        className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                                    >
+                                        <option value="" disabled>-- Seleccionar monitoreo --</option>
+                                        {monitoringServices.map(item => (
+                                            <option key={item.id} value={item.id}>
+                                                {item.name} {item.code ? `[${item.code}]` : ''} - ${(Number(item.base_price_mxn) || Number(item.price) || 0).toFixed(2)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 4. Servicios técnicos */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <Wrench className="w-3.5 h-3.5 text-purple-600" />
+                                        Servicios Técnicos
+                                        <span className="text-gray-400 font-normal">({technicalServices.length})</span>
+                                    </label>
+                                    <select
+                                        onChange={(e) => {
+                                            const item = technicalServices.find(i => i.id === e.target.value);
+                                            if (item) handleSelectProductOrService(item, false);
+                                            e.target.value = "";
+                                        }}
+                                        defaultValue=""
+                                        className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                                    >
+                                        <option value="" disabled>-- Seleccionar servicio técnico --</option>
+                                        {technicalServices.map(item => (
+                                            <option key={item.id} value={item.id}>
+                                                {item.name} {item.code ? `[${item.code}]` : ''} - ${(Number(item.base_price_mxn) || Number(item.price) || 0).toFixed(2)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 5. Tipo de visita */}
+                                <div className="sm:col-span-2 lg:col-span-2">
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <Car className="w-3.5 h-3.5 text-indigo-600" />
+                                        Tipo de Visita
+                                        <span className="text-gray-400 font-normal">({visitTypes.length})</span>
+                                    </label>
+                                    <select
+                                        onChange={(e) => {
+                                            const item = visitTypes.find(i => i.id === e.target.value);
+                                            if (item) handleSelectProductOrService(item, true);
+                                            e.target.value = "";
+                                        }}
+                                        defaultValue=""
+                                        className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                                    >
+                                        <option value="" disabled>-- Seleccionar tipo de visita --</option>
+                                        {visitTypes.map(item => (
+                                            <option key={item.id} value={item.id}>
+                                                {item.name} - ${item.price.toFixed(2)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Concepto *</label>
                         <input
@@ -410,63 +803,105 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                     </div>
 
                     <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-                        <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                            <DollarSign className="w-5 h-5 text-green-600" />
-                            Detalles Financieros
-                        </h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                                <DollarSign className="w-5 h-5 text-green-600" />
+                                Detalles Financieros (IVA {taxRate}% Incluido)
+                            </h3>
+                            <span className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-medium">
+                                Captura en Precio Neto
+                            </span>
+                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Subtotal *</label>
+                                <label className="block text-sm font-semibold text-gray-800 mb-1">
+                                    Precio Neto (IVA Inc.) *
+                                </label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
                                     <input
                                         type="number"
                                         min="0"
                                         step="0.01"
                                         required
-                                        value={formData.subtotal}
-                                        onChange={(e) => setFormData({ ...formData, subtotal: parseFloat(e.target.value) || 0 })}
-                                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        value={formData.net_price || ''}
+                                        placeholder="0.00"
+                                        onChange={(e) => handleNetPriceChange(parseFloat(e.target.value) || 0)}
+                                        className="w-full pl-7 pr-3 py-2 border-2 border-blue-500 bg-white rounded-lg focus:ring-2 focus:ring-blue-500 font-semibold text-gray-900"
                                     />
                                 </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                    Monto final con IVA incluido
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    Subtotal (sin IVA)
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                                    <input
+                                        type="number"
+                                        readOnly
+                                        disabled
+                                        value={formData.subtotal}
+                                        className="w-full pl-7 pr-3 py-2 border border-gray-200 bg-gray-100 rounded-lg text-gray-700 cursor-not-allowed font-medium"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-1">
+                                    Calculado: Precio ÷ {taxMultiplier.toFixed(2)}
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    IVA ({taxRate}%)
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                                    <input
+                                        type="number"
+                                        readOnly
+                                        disabled
+                                        value={formData.tax}
+                                        className="w-full pl-7 pr-3 py-2 border border-gray-200 bg-gray-100 rounded-lg text-gray-700 cursor-not-allowed font-medium"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-1">
+                                    Calculado: Precio − Subtotal
+                                </p>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    IVA ({formData.tax_rate * 100}%)
+                                    Descuento
                                 </label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={formData.tax}
-                                        onChange={(e) => setFormData({ ...formData, tax: parseFloat(e.target.value) || 0 })}
-                                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Descuento</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                                     <input
                                         type="number"
                                         min="0"
                                         step="0.01"
-                                        value={formData.discount}
-                                        onChange={(e) => setFormData({ ...formData, discount: parseFloat(e.target.value) || 0 })}
-                                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-red-600"
+                                        value={formData.discount || ''}
+                                        placeholder="0.00"
+                                        onChange={(e) => setFormData(prev => ({ ...prev, discount: parseFloat(e.target.value) || 0 }))}
+                                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-red-600 font-medium"
                                     />
                                 </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                    Descuento aplicable
+                                </p>
                             </div>
                         </div>
 
-                        <div className="flex justify-end pt-2 border-t border-gray-200">
+                        <div className="flex flex-wrap justify-between items-center gap-2 pt-3 border-t border-gray-200">
+                            <div className="text-xs text-gray-500">
+                                Desglose: <span className="font-medium text-gray-700">${formData.subtotal.toFixed(2)}</span> (Subtotal) + <span className="font-medium text-gray-700">${formData.tax.toFixed(2)}</span> (IVA) = <span className="font-semibold text-gray-900">${(formData.net_price || (formData.subtotal + formData.tax)).toFixed(2)}</span>
+                            </div>
                             <div className="text-right">
-                                <span className="text-gray-600 mr-2">Total a Pagar:</span>
+                                <span className="text-gray-600 mr-2 text-sm font-medium">Total a Pagar:</span>
                                 <span className="text-2xl font-bold text-gray-900">${total.toFixed(2)}</span>
                             </div>
                         </div>

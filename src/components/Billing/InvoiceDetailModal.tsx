@@ -9,6 +9,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { PaymentModal } from './PaymentModal';
 import { BILLING_STATUS } from '../../constants/billingStatus';
+import { useTaxRate } from '../../hooks/useTaxRate';
 
 
 interface InvoiceDetailModalProps {
@@ -75,6 +76,7 @@ interface Payment {
 }
 
 export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetailModalProps) {
+  const { taxRate } = useTaxRate();
   const [document, setDocument] = useState<BillingDocument | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -877,7 +879,7 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
                 </div>
                 {document.tax > 0 && (
                   <div className="flex justify-between py-1">
-                    <span className="text-gray-600">IVA (16%):</span>
+                    <span className="text-gray-600">IVA ({document.subtotal > 0 ? Math.round((document.tax / document.subtotal) * 100) : taxRate}%):</span>
                     <span className="font-semibold">${document.tax.toFixed(2)}</span>
                   </div>
                 )}

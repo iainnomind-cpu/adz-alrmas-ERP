@@ -26,8 +26,15 @@ import {
   ShieldCheck,
   ShieldAlert,
   AlertCircle,
-  Award
+  Award,
+  Eye,
+  Mail,
+  Phone,
+  Calendar,
+  Sparkles
 } from 'lucide-react';
+import { formatCustomerAccountNumber } from '../../utils/customerAccountNumber';
+import { CustomerProfile360 } from '../CRM/CustomerProfile360';
 
 interface PriorityBreakdown {
   low: number;
@@ -36,6 +43,23 @@ interface PriorityBreakdown {
   urgent: number;
   critical: number;
   total: number;
+}
+
+export interface SuspendedCustomer {
+  id: string;
+  name: string;
+  business_name: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string | null;
+  system_type: string | null;
+  account_number: number | null;
+  is_suspended?: boolean;
+  suspension_start_date: string | null;
+  suspension_end_date: string | null;
+  suspension_reason: string | null;
+  alta_date: string | null;
+  reactivation_date: string | null;
 }
 
 interface KPIs {
@@ -59,6 +83,7 @@ interface KPIs {
   gpsVehicularCustomers: number;
   redCustomers: number;
   videoPorteroCustomers: number;
+  suspendedCustomersCount: number;
   technicianVisitsRevenue: number;
   installationMaterialsCost: number;
   securityDevicesRevenue: number;
@@ -76,6 +101,8 @@ const EQUIPMENT_CATEGORIES = ['alarm', 'alarms', 'panel', 'panels', 'sensor', 's
 
 export function ExecutiveDashboard() {
   const [kpis, setKpis] = useState<KPIs | null>(null);
+  const [suspendedCustomers, setSuspendedCustomers] = useState<SuspendedCustomer[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -93,7 +120,7 @@ export function ExecutiveDashboard() {
         priceListData,
         seriesData
       ] = await Promise.all([
-        supabase.from('customers').select('id, status, system_type'),
+        supabase.from('customers').select('id, name, business_name, phone, email, status, system_type, account_number, is_suspended, suspension_start_date, suspension_end_date, suspension_reason, alta_date, reactivation_date'),
         supabase.from('invoices').select('status, total_amount, days_overdue').neq('status', 'cancelled'),
         supabase.from('service_orders').select('id, status, priority, service_type, description, folio_series_id, full_folio, order_number, total_time_minutes, labor_cost, materials_cost, total_cost, payment_amount'),
         supabase.from('assets').select('is_eol, status'),
@@ -102,7 +129,7 @@ export function ExecutiveDashboard() {
         supabase.from('folio_series').select('id, series_code, series_name, prefix')
       ]);
 
-      const customers = customersData.data || [];
+      const customers = (customersData.data || []) as any[];
       const invoices = invoicesData.data || [];
       const serviceOrders = serviceOrdersData.data || [];
       const assets = assetsData.data || [];
@@ -267,6 +294,18 @@ export function ExecutiveDashboard() {
 
       const totalVisitsRevenue = technicianVisitsRevenue + installationMaterialsCost + securityDevicesRevenue;
 
+      // Filtrar clientes suspendidos
+      const suspendedList = customers.filter(c =>
+        c.is_suspended === true ||
+        (c.status && (
+          c.status.toLowerCase().includes('suspend') ||
+          c.status === 'Suspendida' ||
+          c.status === 'Suspendido'
+        ))
+      ) as SuspendedCustomer[];
+
+      setSuspendedCustomers(suspendedList);
+
       setKpis({
         totalRevenue,
         pendingRevenue: pendingInvoices.reduce((sum, i) => sum + i.total_amount, 0),
@@ -288,6 +327,7 @@ export function ExecutiveDashboard() {
         gpsVehicularCustomers,
         redCustomers,
         videoPorteroCustomers,
+        suspendedCustomersCount: suspendedList.length,
         technicianVisitsRevenue,
         installationMaterialsCost,
         securityDevicesRevenue,
@@ -455,6 +495,14 @@ export function ExecutiveDashboard() {
       iconBg: 'bg-amber-100 text-amber-700'
     },
     {
+      title: 'Cuentas Suspendidas',
+      value: kpis.suspendedCustomersCount,
+      subtitle: `${suspendedCustomers.filter(c => !!c.suspension_end_date).length} con reanudación programada`,
+      icon: PauseCircle,
+      color: 'from-amber-600 to-orange-700',
+      iconBg: 'bg-amber-100 text-amber-700'
+    },
+    {
       title: 'Ingresos Cobrados',
       value: `$${kpis.totalRevenue.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
       subtitle: 'Período actual',
@@ -464,9 +512,19 @@ export function ExecutiveDashboard() {
     }
   ];
 
+  const getDaysDiff = (targetDateStr: string | null) => {
+    if (!targetDateStr) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(targetDateStr);
+    target.setHours(0, 0, 0, 0);
+    const diffTime = target.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
   return (
     <div className="space-y-6">
-      {/* Grid de 15 Recuadros de Colores */}
+      {/* Grid de 15 Recuadros de Colores + Métricas Clave */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
@@ -776,6 +834,178 @@ export function ExecutiveDashboard() {
           </div>
         </div>
       </div>
+
+      {/* SECCIÓN EJECUTIVA: Control de Cuentas Suspendidas y Fechas de Reanudación Programadas */}
+      <div className="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-5 text-white flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl">
+              <PauseCircle className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Control de Cuentas Suspendidas y Fechas de Reanudación</h3>
+              <p className="text-xs text-amber-100">
+                Monitoreo de suspensiones temporales, motivos y fechas estimadas de reactivación de servicio
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-bold border border-white/30 text-white">
+              Total Suspendidas: {suspendedCustomers.length}
+            </span>
+            <span className="px-3 py-1 bg-white text-amber-800 rounded-full text-xs font-bold shadow-xs">
+              Con Reanudación Programada: {suspendedCustomers.filter(c => !!c.suspension_end_date).length}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-6">
+          {suspendedCustomers.length === 0 ? (
+            <div className="text-center py-10 bg-amber-50/50 rounded-xl border border-dashed border-amber-200">
+              <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
+              <p className="text-gray-800 font-bold">No hay cuentas suspendidas</p>
+              <p className="text-gray-500 text-xs mt-1">Todos los clientes se encuentran activos o con servicio regular.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="bg-amber-50/80 text-amber-900 border-b border-amber-200 text-xs font-bold uppercase tracking-wider">
+                    <th className="py-3 px-4">Cuenta</th>
+                    <th className="py-3 px-4">Cliente / Contacto</th>
+                    <th className="py-3 px-4">Sistema</th>
+                    <th className="py-3 px-4">Fecha Inicio Suspensión</th>
+                    <th className="py-3 px-4">Fecha Fin de Suspensión (Reanudación)</th>
+                    <th className="py-3 px-4">Motivo de Suspensión</th>
+                    <th className="py-3 px-4 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {suspendedCustomers.map((customer) => {
+                    const daysDiff = getDaysDiff(customer.suspension_end_date);
+                    const formattedStart = customer.suspension_start_date
+                      ? new Date(customer.suspension_start_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })
+                      : 'No registrada';
+
+                    const formattedEnd = customer.suspension_end_date
+                      ? new Date(customer.suspension_end_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })
+                      : null;
+
+                    return (
+                      <tr
+                        key={customer.id}
+                        className="hover:bg-amber-50/40 transition-colors"
+                      >
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-gray-100 text-gray-800 border border-gray-200">
+                            {formatCustomerAccountNumber(customer.account_number, customer.system_type)}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-gray-900">{customer.name}</div>
+                          {customer.business_name && (
+                            <div className="text-xs text-gray-500">{customer.business_name}</div>
+                          )}
+                          <div className="text-xs text-gray-400 flex items-center gap-3 mt-1">
+                            {customer.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="w-3 h-3" />
+                                {customer.phone}
+                              </span>
+                            )}
+                            {customer.email && (
+                              <span className="flex items-center gap-1 truncate max-w-[180px]" title={customer.email}>
+                                <Mail className="w-3 h-3" />
+                                {customer.email}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 capitalize">
+                            {customer.system_type || 'Alarma'}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 text-gray-700 font-medium">
+                            <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{formattedStart}</span>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {formattedEnd ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 font-bold text-gray-900">
+                                <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                                <span>{formattedEnd}</span>
+                              </div>
+                              {daysDiff !== null && (
+                                <div>
+                                  {daysDiff > 0 ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                                      Reanudación en {daysDiff} día{daysDiff > 1 ? 's' : ''}
+                                    </span>
+                                  ) : daysDiff === 0 ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                                      Reanudación HOY
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                      Vencida hace {Math.abs(daysDiff)} día{Math.abs(daysDiff) > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                              Indefinida / Pendiente
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 max-w-[220px]">
+                          <p className="text-xs text-gray-600 line-clamp-2" title={customer.suspension_reason || 'Sin motivo especificado'}>
+                            {customer.suspension_reason || <span className="text-gray-400 italic">No especificado</span>}
+                          </p>
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCustomerId(customer.id)}
+                            className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver Ficha 360
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal de Ficha 360 del Cliente */}
+      {selectedCustomerId && (
+        <CustomerProfile360
+          customerId={selectedCustomerId}
+          onClose={() => {
+            setSelectedCustomerId(null);
+            loadKPIs();
+          }}
+          onEdit={() => {}}
+        />
+      )}
     </div>
   );
 }

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Package, TrendingDown, AlertTriangle, DollarSign } from 'lucide-react';
+import { getTaxRateSync } from '../../services/taxService';
 
-export function getItemNetPrice(item: any): number {
+export function getItemNetPrice(item: any, defaultRate: number = getTaxRateSync()): number {
   if (item.price_with_tax_mxn !== undefined && item.price_with_tax_mxn !== null && Number(item.price_with_tax_mxn) > 0) {
     return Number(item.price_with_tax_mxn);
   }
   const base = Number(item.base_price_mxn) || 0;
   const hasTax = item.has_tax ?? true;
   if (!hasTax) return base;
-  const taxRate = item.tax_rate !== undefined && item.tax_rate !== null ? Number(item.tax_rate) : 16;
+  const taxRate = item.tax_rate !== undefined && item.tax_rate !== null ? Number(item.tax_rate) : defaultRate;
   return base * (1 + taxRate / 100);
 }
 

@@ -1,13 +1,34 @@
-export const SERVICE_TRAVEL_ZONES = [
-  { value: 'zm_cd_guzman_50km', label: 'ZM Cd. Guzman hasta 50 km' },
-  { value: 'zm_cd_guzman_plus_50km', label: 'ZM Cd. Guzman +50 km' },
-  { value: 'colima', label: 'Colima' },
-  { value: 'guadalajara', label: 'Guadalajara' },
-  { value: 'otra_zona', label: 'Otra zona' }
+export interface ServiceTravelZone {
+  value: string;
+  label: string;
+  cost: number;
+  description?: string;
+}
+
+export const SERVICE_TRAVEL_ZONES: ServiceTravelZone[] = [
+  {
+    value: 'local',
+    label: 'Local',
+    cost: 0,
+    description: 'Tamazula, Tuxpan, Zapotiltic, Gómez Farías, San Andrés, Atoyac, Sayula y municipios circundantes (hasta 50 km)'
+  },
+  { value: 'zm_cd_guzman_50km', label: 'ZM Cd. Guzman hasta 50 km', cost: 0 },
+  { value: 'zm_cd_guzman_plus_50km', label: 'ZM Cd. Guzman +50 km', cost: 0 },
+  { value: 'colima', label: 'Colima', cost: 0 },
+  { value: 'guadalajara', label: 'Guadalajara', cost: 0 },
+  { value: 'otra_zona', label: 'Otra zona', cost: 0 }
 ];
 
 export function getTravelZoneLabel(value?: string | null): string {
   return SERVICE_TRAVEL_ZONES.find((zone) => zone.value === value)?.label || 'No especificado';
+}
+
+export function getTravelZoneCost(value?: string | null): number {
+  return SERVICE_TRAVEL_ZONES.find((zone) => zone.value === value)?.cost ?? 0;
+}
+
+export function getTravelZone(value?: string | null): ServiceTravelZone | undefined {
+  return SERVICE_TRAVEL_ZONES.find((zone) => zone.value === value);
 }
 
 export function calculateLaborCharge(totalMinutes: number): { cost: number; label: string } {

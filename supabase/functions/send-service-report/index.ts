@@ -70,8 +70,26 @@ Deno.serve(async (req: Request) => {
       },
     });
 
+    // Fetch tax_rate from system_settings or default
+    let taxRate = 16;
+    try {
+      const { data: taxSetting } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'tax_rate')
+        .maybeSingle();
+      if (taxSetting && taxSetting.setting_value !== undefined && taxSetting.setting_value !== null) {
+        const parsed = parseFloat(String(taxSetting.setting_value));
+        if (!isNaN(parsed) && parsed >= 0) {
+          taxRate = parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch tax_rate setting, defaulting to 16:', e);
+    }
+
     // Generate email HTML
-    const emailHtml = generateServiceReportEmail(reportData);
+    const emailHtml = generateServiceReportEmail(reportData, taxRate);
 
     // Send email using Nodemailer
     const info = await transporter.sendMail({
@@ -131,8 +149,9 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-function generateServiceReportEmail(report: ServiceReportRequest['reportData']): string {
-  const totalWithTax = report.total_cost * 1.16;
+function generateServiceReportEmail(report: ServiceReportRequest['reportData'], taxRate: number = 16): string {
+  const taxAmount = report.total_cost * (taxRate / 100);
+  const totalWithTax = report.total_cost * (1 + taxRate / 100);
 
   return `
 <!DOCTYPE html>
@@ -455,8 +474,8 @@ function generateServiceReportEmail(report: ServiceReportRequest['reportData']):
           <span class="cost-value">$${report.total_cost.toFixed(2)}</span>
         </div>
         <div class="cost-row">
-          <span class="cost-label">IVA (16%):</span>
-          <span class="cost-value">$${(report.total_cost * 0.16).toFixed(2)}</span>
+          <span class="cost-label">IVA (${taxRate}%):</span>
+          <span class="cost-value">$${taxAmount.toFixed(2)}</span>
         </div>
         <div class="cost-row total-final">
           <span class="cost-label">TOTAL GENERAL:</span>
