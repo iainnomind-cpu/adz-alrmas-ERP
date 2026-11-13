@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { describeSupabaseError } from '../../lib/supabaseErrors';
 import { generateAllRecurringEvents } from '../../lib/recurringEvents';
 import toast, { Toaster } from 'react-hot-toast';
 import {
@@ -230,14 +231,7 @@ export function CalendarView() {
   };
 
   const validateDrop = async (event: CalendarEvent, targetDate: Date): Promise<{ valid: boolean; error?: string }> => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(targetDate);
-    target.setHours(0, 0, 0, 0);
-
-    if (target < today) {
-      return { valid: false, error: 'No se puede mover a fechas pasadas' };
-    }
+    // Se permite mover/capturar eventos en días anteriores (registro de trabajo ya realizado).
 
     if (event.technicianId) {
       const startOfDay = new Date(targetDate);
@@ -305,7 +299,7 @@ export function CalendarView() {
       console.error('Error updating schedule:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Error al actualizar la fecha'
+        error: describeSupabaseError(error, 'Error al actualizar la fecha')
       };
     }
   };
@@ -393,31 +387,45 @@ export function CalendarView() {
   const handleSaveEvent = async (updatedEvent: Partial<CalendarEvent> & { id: string }) => {
     try {
       const isConceptEvent = updatedEvent.id.startsWith('concept-');
+      // Solo se envían los campos que realmente cambiaron, para no chocar con
+      // restricciones de la base en campos que el usuario no tocó.
+      const original = events.find(ev => ev.id === updatedEvent.id);
+      const changed = (key: keyof CalendarEvent) => {
+        if (!original) return true;
+        const a = (updatedEvent as any)[key];
+        const b = (original as any)[key];
+        if (a instanceof Date && b instanceof Date) return a.getTime() !== b.getTime();
+        return (a ?? null) !== (b ?? null);
+      };
       
       if (isConceptEvent) {
         const conceptId = updatedEvent.id.replace('concept-', '');
         const updateData: any = { updated_at: new Date().toISOString() };
-        if (updatedEvent.start) updateData.scheduled_date = updatedEvent.start.toISOString();
-        if (updatedEvent.technicianId !== undefined) updateData.assigned_to = updatedEvent.technicianId || null;
-        if (updatedEvent.customerId) updateData.customer_id = updatedEvent.customerId;
-        if (updatedEvent.internalNotes !== undefined) updateData.notes = updatedEvent.internalNotes;
-        if (updatedEvent.priority) updateData.priority = updatedEvent.priority;
+        if (updatedEvent.start && changed('start')) updateData.scheduled_date = updatedEvent.start.toISOString();
+        if (changed('technicianId')) updateData.assigned_to = updatedEvent.technicianId || null;
+        if (updatedEvent.customerId && changed('customerId')) updateData.customer_id = updatedEvent.customerId;
+        if (updatedEvent.internalNotes !== undefined && changed('internalNotes')) updateData.notes = updatedEvent.internalNotes;
+        if (updatedEvent.priority && changed('priority')) updateData.priority = updatedEvent.priority;
         // status no existe en calendar_concepts
 
-        const { error } = await supabase.from('calendar_concepts').update(updateData).eq('id', conceptId);
+        const { data: saved, error } = await supabase.from('calendar_concepts').update(updateData).eq('id', conceptId).select('id');
         if (error) throw error;
+        if (!saved || saved.length === 0) throw { code: '42501', message: 'No se actualizó ningún registro' };
       } else {
         const updateData: any = { updated_at: new Date().toISOString() };
-        if (updatedEvent.start) updateData.scheduled_date = updatedEvent.start.toISOString();
-        if (updatedEvent.technicianId !== undefined) updateData.technician_id = updatedEvent.technicianId || null;
-        if (updatedEvent.customerId) updateData.customer_id = updatedEvent.customerId;
-        if (updatedEvent.internalNotes !== undefined) updateData.internal_notes = updatedEvent.internalNotes;
-        if (updatedEvent.description !== undefined) updateData.description = updatedEvent.description;
-        if (updatedEvent.priority) updateData.priority = updatedEvent.priority;
-        if (updatedEvent.status) updateData.status = updatedEvent.status;
+        if (updatedEvent.start && changed('start')) updateData.scheduled_date = updatedEvent.start.toISOString();
+        if (changed('technicianId')) updateData.technician_id = updatedEvent.technicianId || null;
+        if (updatedEvent.customerId && changed('customerId')) updateData.customer_id = updatedEvent.customerId;
+        if (updatedEvent.description !== undefined && changed('description')) {
+          updateData.description = updatedEvent.description;
+          updateData.internal_notes = updatedEvent.internalNotes ?? updatedEvent.description;
+        }
+        if (updatedEvent.priority && changed('priority')) updateData.priority = updatedEvent.priority;
+        if (updatedEvent.status && changed('status')) updateData.status = updatedEvent.status;
 
-        const { error } = await supabase.from('service_orders').update(updateData).eq('id', updatedEvent.id);
+        const { data: saved, error } = await supabase.from('service_orders').update(updateData).eq('id', updatedEvent.id).select('id');
         if (error) throw error;
+        if (!saved || saved.length === 0) throw { code: '42501', message: 'No se actualizó ningún registro' };
       }
 
       await loadEvents();
@@ -425,7 +433,7 @@ export function CalendarView() {
       toast.success('Evento actualizado correctamente');
     } catch (err) {
       console.error('Error saving event:', err);
-      toast.error('Error al guardar los cambios');
+      toast.error(describeSupabaseError(err, 'Error al guardar los cambios'), { duration: 7000 });
     }
   };
 
@@ -772,8 +780,9 @@ export function CalendarView() {
       toast.success('Concepto programado exitosamente');
     } catch (error) {
       console.error('Error scheduling concept:', error);
-      setValidationError('Error al programar el concepto. Intente nuevamente.');
-      toast.error('Error al programar el concepto');
+      const msg = describeSupabaseError(error, 'Error al programar el concepto');
+      setValidationError(msg);
+      toast.error(msg, { duration: 7000 });
       setDraggedConcept(null);
     }
   };
