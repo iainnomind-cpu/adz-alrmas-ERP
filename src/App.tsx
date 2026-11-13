@@ -12,6 +12,7 @@ import { AssetList } from './components/Assets/AssetList';
 import { InventoryModule } from './components/Inventory/InventoryModule';
 import { SettingsModule } from './components/Settings/SettingsModule';
 import { CalendarView } from './components/Calendar/CalendarView';
+import { QuotesModule } from './components/Quotes/QuotesModule';
 import { ShieldAlert } from 'lucide-react';
 
 // Map tab IDs to permission module names
@@ -21,6 +22,7 @@ const tabToModuleMap: Record<string, string> = {
   'customers-alarma': 'customers',
   'customers-cctv': 'customers',
   'customers-acceso': 'customers',
+  'quotes': 'quotes',
   'service-orders': 'service_orders',
   'calendar': 'service_orders',
   'invoices': 'invoices',
@@ -88,6 +90,8 @@ function App() {
         return <CustomerList systemType="video_portero" />;
       case 'customers-red':
         return <CustomerList systemType="red" />;
+      case 'quotes':
+        return <QuotesModule />;
       case 'service-orders':
         return <ServiceOrderList />;
       case 'calendar':

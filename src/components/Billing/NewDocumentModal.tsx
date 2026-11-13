@@ -7,22 +7,9 @@ import {
 import type { Database } from '../../lib/database.types';
 import { useIvaRate, splitNetAmount, round2, formatPercent } from '../../lib/tax';
 import { describeSupabaseError, isDuplicateError } from '../../lib/supabaseErrors';
-
 // Los documentos creados a mano (sin orden de servicio) llevan folio APP-0001, APP-0002...
-const APP_FOLIO_PREFIX = 'APP-';
+import { getNextAppFolio } from '../../lib/folios';
 
-async function getNextAppFolio(): Promise<string> {
-    const { data, error } = await supabase
-        .from('billing_documents')
-        .select('folio')
-        .ilike('folio', `${APP_FOLIO_PREFIX}%`);
-    if (error) throw error;
-    const max = ((data as { folio: string }[]) || []).reduce((acc, row) => {
-        const n = parseInt(String(row.folio).slice(APP_FOLIO_PREFIX.length), 10);
-        return !isNaN(n) && n > acc ? n : acc;
-    }, 0);
-    return `${APP_FOLIO_PREFIX}${String(max + 1).padStart(4, '0')}`;
-}
 
 const VISIT_TYPES = [
     'Visita técnica',

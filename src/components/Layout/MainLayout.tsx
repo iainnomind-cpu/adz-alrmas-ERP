@@ -14,7 +14,8 @@ import {
   LogOut,
   Menu,
   X,
-  Calendar
+  Calendar,
+  ClipboardList
 } from 'lucide-react';
 
 interface MainLayoutProps {
@@ -30,6 +31,7 @@ const sidebarToModuleMap: Record<string, string> = {
   'customers-alarma': 'customers',
   'customers-cctv': 'customers',
   'customers-acceso': 'customers',
+  'quotes': 'quotes',
   'service-orders': 'service_orders',
   'calendar': 'service_orders',
   'invoices': 'invoices',
@@ -69,6 +71,7 @@ export function MainLayout({ children, activeTab, onTabChange }: MainLayoutProps
         { id: 'customers-videoportero', label: 'Video Portero' }
       ]
     },
+    { id: 'quotes', label: 'Cotizaciones', icon: ClipboardList },
     { id: 'service-orders', label: 'Órdenes de Servicio', icon: Wrench },
     { id: 'calendar', label: 'Calendario', icon: Calendar },
     { id: 'invoices', label: 'Facturación', icon: FileText },

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { QuotesModule } from '../Quotes/QuotesModule';
 import {
   X,
   User,
@@ -67,7 +68,7 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCardsCount, setActiveCardsCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'general' | 'contacts' | 'equipment' | 'services' | 'billing' | 'accounts' | 'suspension' | 'observations' | 'history' | 'cards'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'quotes' | 'contacts' | 'equipment' | 'services' | 'billing' | 'accounts' | 'suspension' | 'observations' | 'history' | 'cards'>('general');
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [showAddContactModal, setShowAddContactModal] = useState(false);
   const [addingContact, setAddingContact] = useState(false);
@@ -244,6 +245,7 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
     { id: 'contacts', label: 'Contactos', icon: Users },
     { id: 'equipment', label: 'Equipos', icon: Shield },
     { id: 'services', label: 'Servicios', icon: Wrench },
+    { id: 'quotes', label: 'Cotizaciones', icon: FileText },
     { id: 'billing', label: 'Facturación', icon: FileText },
     { id: 'cards', label: 'Tarjetas Digitales', icon: CreditCard },
     { id: 'suspension', label: 'Suspensión', icon: PauseCircle },
@@ -820,6 +822,10 @@ export function CustomerProfile360({ customerId, onClose, onEdit }: CustomerProf
                   </div>
                 )}
               </div>
+            )}
+
+            {activeTab === 'quotes' && (
+              <QuotesModule customerId={customerId} />
             )}
 
             {activeTab === 'billing' && (

@@ -96,6 +96,7 @@ export function RolePermissions() {
     switch (module) {
       case 'dashboard': return 'Dashboard';
       case 'customers': return 'Clientes';
+      case 'quotes': return 'Cotizaciones';
       case 'service_orders': return 'Órdenes de Servicio';
       case 'invoices': return 'Facturación';
       case 'assets': return 'Activos';
