@@ -84,7 +84,7 @@ export const PLAN_COLOR_CLASSES: Record<string, { badge: string; swatch: string 
   gray: { badge: 'bg-gray-100 text-gray-800', swatch: 'bg-gray-100 border-gray-400' }
 };
 
-/** Se usan si la tabla monitoring_plans aún no existe o está vacía. */
+/** Se usan si la tabla customer_plan_options aún no existe o está vacía. */
 export const DEFAULT_MONITORING_PLANS: MonitoringPlan[] = [
   { name: 'Clásico', color: 'orange', sort_order: 1 },
   { name: 'Plus', color: 'blue', sort_order: 2 },
@@ -116,7 +116,7 @@ export function getPlanClasses(plan?: MonitoringPlan) {
 
 let cachedPlans: MonitoringPlan[] | null = null;
 
-/** Planes de monitoreo activos, leídos de la tabla monitoring_plans. */
+/** Planes de monitoreo activos, leídos de la tabla customer_plan_options. */
 export function useMonitoringPlans(): MonitoringPlan[] {
   const [plans, setPlans] = useState<MonitoringPlan[]>(cachedPlans || DEFAULT_MONITORING_PLANS);
 
@@ -125,7 +125,7 @@ export function useMonitoringPlans(): MonitoringPlan[] {
     let alive = true;
     (async () => {
       try {
-        const { data, error } = await (supabase.from('monitoring_plans') as any)
+        const { data, error } = await (supabase.from('customer_plan_options') as any)
           .select('name, color, sort_order')
           .eq('is_active', true)
           .order('sort_order', { ascending: true });
@@ -136,7 +136,7 @@ export function useMonitoringPlans(): MonitoringPlan[] {
         }
       } catch (err) {
         // La tabla puede no existir todavía; se usan los planes por defecto.
-        console.warn('No se pudo leer monitoring_plans; se usan los planes por defecto.', err);
+        console.warn('No se pudo leer customer_plan_options; se usan los planes por defecto.', err);
       }
     })();
     return () => {

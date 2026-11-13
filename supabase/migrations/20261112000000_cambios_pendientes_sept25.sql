@@ -181,10 +181,12 @@ CREATE POLICY "inventory_locations_delete_authenticated" ON inventory_locations
 -- ---------------------------------------------------------------------
 -- 4. PLANES DE MONITOREO (leyenda de colores y formulario de clientes)
 --    Ramos puede agregar o desactivar planes directamente en esta tabla.
+--    (Tabla nueva: monitoring_plans ya existe como catálogo de suscripciones
+--    con otras columnas y no se modifica.)
 --    Colores disponibles: orange, blue, rose, cyan, violet, teal, lime,
 --    fuchsia, amber, green, red, gray.
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS monitoring_plans (
+CREATE TABLE IF NOT EXISTS customer_plan_options (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL UNIQUE,
   color text NOT NULL DEFAULT 'gray',
@@ -193,17 +195,17 @@ CREATE TABLE IF NOT EXISTS monitoring_plans (
   created_at timestamptz DEFAULT now()
 );
 
-ALTER TABLE monitoring_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customer_plan_options ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "monitoring_plans_select_authenticated" ON monitoring_plans;
-CREATE POLICY "monitoring_plans_select_authenticated" ON monitoring_plans
+DROP POLICY IF EXISTS "customer_plan_options_select_authenticated" ON customer_plan_options;
+CREATE POLICY "customer_plan_options_select_authenticated" ON customer_plan_options
   FOR SELECT TO authenticated USING (true);
 
-DROP POLICY IF EXISTS "monitoring_plans_manage_authenticated" ON monitoring_plans;
-CREATE POLICY "monitoring_plans_manage_authenticated" ON monitoring_plans
+DROP POLICY IF EXISTS "customer_plan_options_manage_authenticated" ON customer_plan_options;
+CREATE POLICY "customer_plan_options_manage_authenticated" ON customer_plan_options
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
-INSERT INTO monitoring_plans (name, color, sort_order) VALUES
+INSERT INTO customer_plan_options (name, color, sort_order) VALUES
   ('Clásico', 'orange', 1),
   ('Plus', 'blue', 2),
   ('Plus con 15', 'cyan', 3),
