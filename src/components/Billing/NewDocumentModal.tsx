@@ -1,10 +1,66 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
-    X, FileText, DollarSign, Search,
+    X, FileText, DollarSign, Search, Package, Plus, Trash2,
     AlertCircle, Loader2, AlertTriangle, Clock, CreditCard
 } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
+import { useIvaRate, splitNetAmount, round2, formatPercent } from '../../lib/tax';
+import { describeSupabaseError, isDuplicateError } from '../../lib/supabaseErrors';
+
+// Los documentos creados a mano (sin orden de servicio) llevan folio APP-0001, APP-0002...
+const APP_FOLIO_PREFIX = 'APP-';
+
+async function getNextAppFolio(): Promise<string> {
+    const { data, error } = await supabase
+        .from('billing_documents')
+        .select('folio')
+        .ilike('folio', `${APP_FOLIO_PREFIX}%`);
+    if (error) throw error;
+    const max = ((data as { folio: string }[]) || []).reduce((acc, row) => {
+        const n = parseInt(String(row.folio).slice(APP_FOLIO_PREFIX.length), 10);
+        return !isNaN(n) && n > acc ? n : acc;
+    }, 0);
+    return `${APP_FOLIO_PREFIX}${String(max + 1).padStart(4, '0')}`;
+}
+
+const VISIT_TYPES = [
+    'Visita técnica',
+    'Cambio de batería',
+    'Mantenimiento',
+    'Revisión / diagnóstico',
+    'Instalación',
+    'Otro'
+];
+
+// Grupos del inventario que se pueden agregar a un documento
+const ITEM_GROUPS: { key: string; label: string; categories: string[] }[] = [
+    { key: 'all', label: 'Todos', categories: [] },
+    { key: 'materiales', label: 'Materiales de instalación', categories: ['material', 'accesorio'] },
+    { key: 'dispositivos', label: 'Dispositivos', categories: ['dispositivo', 'sensor'] },
+    { key: 'servicios', label: 'Servicios de monitoreo', categories: ['servicio'] },
+    { key: 'tecnicos', label: 'Servicios técnicos', categories: ['mano_obra'] }
+];
+
+interface CatalogItem {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    base_price_mxn: number | null;
+    price_with_tax_mxn: number | null;
+    has_tax: boolean | null;
+    tax_rate: number | null;
+}
+
+interface DocumentLine {
+    id: string;
+    code: string;
+    name: string;
+    quantity: number;
+    /** Precio unitario neto (IVA incluido) */
+    unit_price: number;
+}
 
 interface PendingDebt {
     id: string;
@@ -50,15 +106,59 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
         due_date: new Date().toISOString().split('T')[0],
         concept: '',
         description: '',
-        subtotal: 0,
-        tax_rate: 0.16, // Default 16%
-        tax: 0,
+        visit_type: '',
+        net_amount: 0, // Precio neto, IVA incluido
         discount: 0,
         payment_status: 'pending' // Default pending
     });
 
-    // Derived Total
-    const total = formData.subtotal + (formData.subtotal > 0 ? formData.tax : 0) - formData.discount;
+    // Productos y servicios del inventario
+    const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+    const [itemSearch, setItemSearch] = useState('');
+    const [itemGroup, setItemGroup] = useState('all');
+    const [lines, setLines] = useState<DocumentLine[]>([]);
+
+    // Se captura el precio NETO (IVA incluido) y el sistema hace el desglose.
+    // Ejemplo: 350 neto → subtotal 301.72, IVA 48.28.
+    const { percent: ivaPercent, rate: ivaRate } = useIvaRate();
+    const linesTotal = round2(lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0));
+    const netAmount = lines.length > 0 ? linesTotal : formData.net_amount;
+    const total = Math.max(0, round2(netAmount - formData.discount));
+    const { subtotal, tax } = splitNetAmount(total, ivaRate);
+
+    const netPriceOf = (item: CatalogItem): number => {
+        const withTax = Number(item.price_with_tax_mxn) || 0;
+        if (withTax > 0) return round2(withTax);
+        const base = Number(item.base_price_mxn) || 0;
+        const itemRate = item.has_tax === false ? 0 : (Number(item.tax_rate) > 0 ? Number(item.tax_rate) / 100 : ivaRate);
+        return round2(base * (1 + itemRate));
+    };
+
+    const addLine = (item: CatalogItem) => {
+        setLines(prev => {
+            const existing = prev.find(l => l.id === item.id);
+            if (existing) {
+                return prev.map(l => l.id === item.id ? { ...l, quantity: l.quantity + 1 } : l);
+            }
+            return [...prev, { id: item.id, code: item.code, name: item.name, quantity: 1, unit_price: netPriceOf(item) }];
+        });
+    };
+
+    const updateLine = (id: string, changes: Partial<DocumentLine>) => {
+        setLines(prev => prev.map(l => l.id === id ? { ...l, ...changes } : l));
+    };
+
+    const removeLine = (id: string) => {
+        setLines(prev => prev.filter(l => l.id !== id));
+    };
+
+    const filteredCatalog = catalog.filter(item => {
+        const group = ITEM_GROUPS.find(g => g.key === itemGroup);
+        if (group && group.categories.length > 0 && !group.categories.includes(item.category)) return false;
+        const term = itemSearch.trim().toLowerCase();
+        if (!term) return true;
+        return item.name.toLowerCase().includes(term) || (item.code || '').toLowerCase().includes(term);
+    }).slice(0, 30);
 
     useEffect(() => {
         // Reset state when modal opens
@@ -70,12 +170,29 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                 due_date: new Date().toISOString().split('T')[0],
                 concept: '',
                 description: '',
-                subtotal: 0,
-                tax_rate: 0.16,
-                tax: 0,
+                visit_type: '',
+                net_amount: 0,
                 discount: 0,
                 payment_status: 'pending'
             });
+            setLines([]);
+            setItemSearch('');
+            setItemGroup('all');
+
+            // Folio consecutivo APP-0001, APP-0002...
+            getNextAppFolio()
+                .then(folio => setFormData(prev => ({ ...prev, folio })))
+                .catch(err => console.error('Error obteniendo folio APP:', err));
+
+            // Catálogo de productos y servicios
+            (supabase.from('price_list') as any)
+                .select('id, code, name, category, base_price_mxn, price_with_tax_mxn, has_tax, tax_rate')
+                .eq('is_active', true)
+                .order('name')
+                .then(({ data, error }: { data: CatalogItem[] | null; error: unknown }) => {
+                    if (error) console.error('Error cargando inventario:', error);
+                    setCatalog(data || []);
+                });
             setSelectedCustomer(null);
             setSearchTerm('');
             setCustomers([]);
@@ -83,12 +200,6 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
             setPendingDebts([]);
         }
     }, [isOpen]);
-
-    // Recalculate tax when subtotal or rate changes
-    useEffect(() => {
-        const calculatedTax = formData.subtotal * formData.tax_rate;
-        setFormData(prev => ({ ...prev, tax: calculatedTax }));
-    }, [formData.subtotal, formData.tax_rate]);
 
     const handleSearch = (term: string) => {
         setSearchTerm(term);
@@ -159,8 +270,8 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
             setError('Por favor seleccione un cliente');
             return;
         }
-        if (!formData.folio) {
-            setError('Por favor ingrese un folio');
+        if (total <= 0 && lines.length === 0) {
+            setError('Capture el precio neto o agregue al menos un producto o servicio');
             return;
         }
 
@@ -168,23 +279,46 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
         setError(null);
 
         try {
-            const { error: insertError } = await supabase
-                .from('billing_documents')
-                .insert([{
-                    customer_id: selectedCustomer.id,
-                    folio: formData.folio,
-                    document_type: formData.document_type,
-                    issue_date: formData.issue_date,
-                    due_date: formData.due_date,
-                    concept: formData.concept,
-                    description: formData.description,
-                    subtotal: formData.subtotal,
-                    tax: formData.tax,
-                    discount: formData.discount,
-                    total: total,
-                    payment_status: formData.payment_status,
-                    balance: total // Assuming simplified creation where balance = total initially for pending
-                }] as any);
+            // El detalle de productos y el tipo de visita se guardan en la descripción
+            const descriptionParts: string[] = [];
+            if (formData.visit_type) descriptionParts.push(`Tipo de visita: ${formData.visit_type}`);
+            if (lines.length > 0) {
+                descriptionParts.push(
+                    lines.map(l => `${l.quantity} x ${l.name}${l.code ? ` [${l.code}]` : ''} — $${round2(l.quantity * l.unit_price).toFixed(2)}`).join('\n')
+                );
+            }
+            if (formData.description.trim()) descriptionParts.push(formData.description.trim());
+
+            const concept = formData.concept.trim()
+                || formData.visit_type
+                || lines.map(l => l.name).join(', ').slice(0, 200);
+
+            let folio = formData.folio || await getNextAppFolio();
+            let insertError: any = null;
+
+            // Si alguien más tomó el folio mientras se llenaba el formulario, se pide el siguiente
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const result = await supabase
+                    .from('billing_documents')
+                    .insert([{
+                        customer_id: selectedCustomer.id,
+                        folio,
+                        document_type: formData.document_type,
+                        issue_date: formData.issue_date,
+                        due_date: formData.due_date,
+                        concept,
+                        description: descriptionParts.join('\n\n'),
+                        subtotal,
+                        tax,
+                        discount: formData.discount,
+                        total,
+                        payment_status: formData.payment_status,
+                        balance: total // Assuming simplified creation where balance = total initially for pending
+                    }] as any);
+                insertError = result.error;
+                if (!isDuplicateError(insertError)) break;
+                folio = await getNextAppFolio();
+            }
 
             if (insertError) throw insertError;
 
@@ -192,7 +326,7 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
             onClose();
         } catch (err: any) {
             console.error('Error creating document:', err);
-            setError(err.message || 'Error al crear el documento');
+            setError(describeSupabaseError(err, 'Error al crear el documento'));
         } finally {
             setLoading(false);
         }
@@ -354,15 +488,14 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Folio *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Folio</label>
                             <input
                                 type="text"
-                                required
-                                value={formData.folio}
-                                onChange={(e) => setFormData({ ...formData, folio: e.target.value })}
-                                placeholder="Ej. A-001"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                readOnly
+                                value={formData.folio || 'Generando...'}
+                                className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg font-mono font-semibold text-gray-700 cursor-not-allowed"
                             />
+                            <p className="text-xs text-gray-500 mt-1">Consecutivo automático para documentos sin orden de servicio.</p>
                         </div>
 
                         <div>
@@ -388,15 +521,131 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Concepto *</label>
-                        <input
-                            type="text"
-                            required
-                            value={formData.concept}
-                            onChange={(e) => setFormData({ ...formData, concept: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Visita</label>
+                            <select
+                                value={formData.visit_type}
+                                onChange={(e) => setFormData({ ...formData, visit_type: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="">Sin especificar</option>
+                                {VISIT_TYPES.map(type => (
+                                    <option key={type} value={type}>{type}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Concepto</label>
+                            <input
+                                type="text"
+                                value={formData.concept}
+                                onChange={(e) => setFormData({ ...formData, concept: e.target.value })}
+                                placeholder="Si se deja vacío se usa el tipo de visita o los productos"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Productos y servicios del inventario */}
+                    <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                        <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                            <Package className="w-5 h-5 text-blue-600" />
+                            Productos y Servicios del Inventario
+                        </h3>
+
+                        <div className="flex flex-wrap gap-2">
+                            {ITEM_GROUPS.map(group => (
+                                <button
+                                    key={group.key}
+                                    type="button"
+                                    onClick={() => setItemGroup(group.key)}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${itemGroup === group.key
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    {group.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={itemSearch}
+                                onChange={(e) => setItemSearch(e.target.value)}
+                                placeholder="Buscar por nombre o código..."
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        </div>
+
+                        <div className="max-h-44 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-100">
+                            {filteredCatalog.length === 0 ? (
+                                <p className="text-sm text-gray-500 p-3">
+                                    {catalog.length === 0 ? 'No hay productos activos en el inventario.' : 'Sin resultados.'}
+                                </p>
+                            ) : filteredCatalog.map(item => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => addLine(item)}
+                                    className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-blue-50"
+                                >
+                                    <span className="min-w-0">
+                                        <span className="block text-sm font-medium text-gray-900 truncate">{item.name}</span>
+                                        <span className="block text-xs text-gray-500">{item.code}</span>
+                                    </span>
+                                    <span className="flex items-center gap-2 flex-shrink-0 text-sm font-semibold text-gray-700">
+                                        ${netPriceOf(item).toFixed(2)}
+                                        <Plus className="w-4 h-4 text-blue-600" />
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {lines.length > 0 && (
+                            <div className="space-y-2">
+                                {lines.map(line => (
+                                    <div key={line.id} className="flex flex-wrap items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                                        <span className="flex-1 min-w-[10rem] text-sm font-medium text-gray-900">{line.name}</span>
+                                        <label className="flex items-center gap-1 text-xs text-gray-500">
+                                            Cant.
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={line.quantity}
+                                                onChange={(e) => updateLine(line.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                                                className="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
+                                            />
+                                        </label>
+                                        <label className="flex items-center gap-1 text-xs text-gray-500">
+                                            Neto $
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={line.unit_price}
+                                                onChange={(e) => updateLine(line.id, { unit_price: parseFloat(e.target.value) || 0 })}
+                                                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
+                                            />
+                                        </label>
+                                        <span className="w-24 text-right text-sm font-semibold text-gray-900">
+                                            ${round2(line.quantity * line.unit_price).toFixed(2)}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeLine(line.id)}
+                                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                            title="Quitar"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div>
@@ -415,9 +664,9 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                             Detalles Financieros
                         </h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Subtotal *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Precio Neto (IVA incluido) *</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                                     <input
@@ -425,27 +674,17 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                                         min="0"
                                         step="0.01"
                                         required
-                                        value={formData.subtotal}
-                                        onChange={(e) => setFormData({ ...formData, subtotal: parseFloat(e.target.value) || 0 })}
-                                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        readOnly={lines.length > 0}
+                                        value={lines.length > 0 ? linesTotal : formData.net_amount}
+                                        onChange={(e) => setFormData({ ...formData, net_amount: parseFloat(e.target.value) || 0 })}
+                                        className={`w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${lines.length > 0 ? 'bg-gray-100 text-gray-600' : ''}`}
                                     />
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    IVA ({formData.tax_rate * 100}%)
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={formData.tax}
-                                        onChange={(e) => setFormData({ ...formData, tax: parseFloat(e.target.value) || 0 })}
-                                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {lines.length > 0
+                                        ? 'Suma de los productos y servicios agregados.'
+                                        : 'Capture el precio final que paga el cliente; el IVA se desglosa solo.'}
+                                </p>
                             </div>
 
                             <div>
@@ -464,9 +703,17 @@ export function NewDocumentModal({ isOpen, onClose, onSuccess }: NewDocumentModa
                             </div>
                         </div>
 
-                        <div className="flex justify-end pt-2 border-t border-gray-200">
-                            <div className="text-right">
-                                <span className="text-gray-600 mr-2">Total a Pagar:</span>
+                        <div className="pt-2 border-t border-gray-200 space-y-1 text-sm">
+                            <div className="flex justify-between text-gray-600">
+                                <span>Subtotal:</span>
+                                <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-gray-600">
+                                <span>IVA ({formatPercent(ivaPercent)}%):</span>
+                                <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-baseline pt-1">
+                                <span className="text-gray-600">Total a Pagar:</span>
                                 <span className="text-2xl font-bold text-gray-900">${total.toFixed(2)}</span>
                             </div>
                         </div>
