@@ -141,6 +141,8 @@ export async function getNextProgressiveAccountNumber(systemType: string): Promi
         .from('customers')
         .select('account_number')
         .ilike('system_type', '%alarm%')
+        // Los rangos de 20000 en adelante pertenecen a los otros módulos
+        .lt('account_number', 20000)
         .order('account_number', { ascending: false })
         .limit(1);
 

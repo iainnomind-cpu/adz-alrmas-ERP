@@ -11,6 +11,8 @@ import { GpsPersonalSection } from './GpsPersonalSection';
 import { GpsVehicularSection } from './GpsVehicularSection';
 import { RedSection } from './RedSection';
 import { VideoPorteroSection } from './VideoPorteroSection';
+import { describeSupabaseError, isDuplicateError } from '../../lib/supabaseErrors';
+import { useMonitoringPlans, findPlan } from '../../constants/customerLegend';
 
 type CustomerInsert = Database['public']['Tables']['customers']['Insert'] & {
   branch_name?: string;
@@ -58,6 +60,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [masterAccounts, setMasterAccounts] = useState<MasterAccount[]>([]);
+  const monitoringPlans = useMonitoringPlans();
   const [accountPreview, setAccountPreview] = useState<{ nextSequence: number; formattedAccount: string }>({
     nextSequence: 1,
     formattedAccount: ''
@@ -123,12 +126,14 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
     const { data } = await supabase
       .from('customers')
       .select('id, name, account_number')
-      .eq('account_type', 'master')
-      .eq('status', 'active')
+      .or('account_type.in.(master,Maestra,maestra),is_master_account.eq.true')
       .order('name');
 
     if (data) setMasterAccounts(data as MasterAccount[]);
   };
+
+  // El comunicador solo aplica a clientes de alarma
+  const isAlarmCustomer = !formData.system_type || formData.system_type.toLowerCase().includes('alarm');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,10 +194,20 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
           payload.account_number = progressive.nextDbAccountNumber;
         }
 
-        // Create new customer
-        const { error: insertError } = await supabase
-          .from('customers')
-          .insert([payload as any]);
+        // Create new customer. Si otro usuario tomó el mismo número de cuenta
+        // mientras se llenaba el formulario, se recalcula y se reintenta.
+        let insertError: any = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const result = await supabase
+            .from('customers')
+            .insert([payload as any]);
+          insertError = result.error;
+          const isAccountClash = isDuplicateError(insertError) &&
+            /account_number/i.test(`${insertError?.message || ''} ${insertError?.details || ''}`);
+          if (!isAccountClash) break;
+          const progressive = await getNextProgressiveAccountNumber(formData.system_type || 'alarma');
+          payload.account_number = progressive.nextDbAccountNumber;
+        }
 
         if (insertError) throw insertError;
       }
@@ -247,7 +262,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar el cliente');
+      setError(describeSupabaseError(err, 'Error al guardar el cliente'));
       console.error('Error saving customer:', err);
     } finally {
       setLoading(false);
@@ -502,6 +517,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                 </select>
               </div>
 
+              {isAlarmCustomer && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tecnología de Comunicación <span className="text-red-600">*</span>
@@ -520,6 +536,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   <option value="LT">LT</option>
                 </select>
               </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -550,6 +567,7 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   <option value="Consolidada">Consolidada</option>
                   <option value="Maestra">Maestra</option>
                   <option value="Normal">Normal</option>
+                  <option value="Corporativa">Corporativa</option>
                   <option value="Demo">Demo</option>
                   <option value="Gratis">Gratis</option>
                 </select>
@@ -915,21 +933,18 @@ export function NewCustomerForm({ onClose, onSuccess, customer, defaultSystemTyp
                   Plan de Monitoreo <span className="text-red-600">*</span>
                 </label>
                 <select
-                  value={formData.monitoring_plan || 'Clásico'}
+                  value={findPlan(monitoringPlans, formData.monitoring_plan)?.name || formData.monitoring_plan || 'Clásico'}
                   onChange={(e) => handleChange('monitoring_plan', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
-                  <option value="Clásico">Clásico</option>
-                  <option value="Plus">Plus</option>
-                  <option value="Pluscom15">Pluscom15</option>
-                  <option value="Pluscom20">Pluscom20</option>
-                  <option value="Premium">Premium</option>
-                  <option value="Premiumcom15">Premiumcom15</option>
-                  <option value="Premiumcom20">Premiumcom20</option>
-                  <option value="Medical">Medical</option>
-                  <option value="Personal">Personal</option>
-                  <option value="Taxi">Taxi</option>
+                  {monitoringPlans.map((plan) => (
+                    <option key={plan.name} value={plan.name}>{plan.name}</option>
+                  ))}
+                  {/* Conserva el plan actual del cliente aunque ya no esté en la lista */}
+                  {formData.monitoring_plan && !findPlan(monitoringPlans, formData.monitoring_plan) && (
+                    <option value={formData.monitoring_plan}>{formData.monitoring_plan} (anterior)</option>
+                  )}
                 </select>
               </div>
 

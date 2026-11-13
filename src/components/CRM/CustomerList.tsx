@@ -9,6 +9,10 @@ import { NewCustomerForm } from './NewCustomerForm';
 import { CustomerGeneratorModal } from './CustomerGeneratorModal';
 import { formatCustomerAccountNumber } from '../../utils/customerAccountNumber';
 import type { Database as DB } from '../../lib/database.types';
+import {
+  ACCOUNT_TYPE_LEGEND, accountTypeDbValues, STATUS_DB_VALUES, planDbValues, buildSearchPatterns,
+  getAccountTypeKey, getAccountTypeLegend, findPlan, getPlanClasses, useMonitoringPlans
+} from '../../constants/customerLegend';
 
 type Customer = Database['public']['Tables']['customers']['Row'] & {
   cards_count?: number;
@@ -83,6 +87,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
   const [customerToEdit, setCustomerToEdit] = useState<Customer | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
   const [searchInput, setSearchInput] = useState('');
+  const monitoringPlans = useMonitoringPlans();
 
   const topSearchRef = useRef<HTMLInputElement>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -219,11 +224,20 @@ export function CustomerList({ systemType }: CustomerListProps) {
         .order('account_number', { ascending: true });
 
       if (filters.searchTerm) {
-        const t = filters.searchTerm;
-        let q = `name.ilike.%${t}%,business_name.ilike.%${t}%,branch_name.ilike.%${t}%,contract_number.ilike.%${t}%`;
-        const n = parseInt(t.replace(/\D/g, ''), 10);
-        if (!isNaN(n)) { q += `,account_number.eq.${n}`; }
-        query = query.or(q);
+        // Cada palabra debe aparecer en algún campo, sin importar acentos ni el orden.
+        const words = filters.searchTerm.trim().split(/\s+/).filter(Boolean);
+        const searchFields = ['name', 'owner_name', 'business_name', 'branch_name', 'contract_number', 'phone', 'address'];
+        buildSearchPatterns(filters.searchTerm).forEach((pattern) => {
+          query = query.or(searchFields.map((f) => `${f}.ilike.${pattern}`).join(','));
+        });
+        // Un número solo también busca por número de cuenta
+        if (words.length === 1 && /^\d{1,9}$/.test(words[0])) {
+          query = supabase
+            .from('customers')
+            .select(selectStr, { count: 'exact' })
+            .order('account_number', { ascending: true })
+            .or(`account_number.eq.${parseInt(words[0], 10)},phone.ilike.%${words[0]}%,contract_number.ilike.%${words[0]}%`);
+        }
       }
 
       if (systemType) {
@@ -250,13 +264,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && systemType.toLowerCase() === 'gps_vehicular') {
         if (filters.gpsVehicularCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.gpsVehicularCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.gpsVehicularCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.gpsVehicularCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.gpsVehicularCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.gpsVehicularCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.gpsVehicularPlan !== 'all') {
@@ -268,13 +281,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && systemType.toLowerCase() === 'red') {
         if (filters.redCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.redCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.redCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.redCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.redCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.redCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.redPlan !== 'all') {
@@ -289,13 +301,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && systemType.toLowerCase() === 'video_portero') {
         if (filters.vpCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.vpCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.vpCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.vpCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.vpCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.vpCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.vpPlan !== 'all') {
@@ -313,13 +324,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && systemType.toLowerCase() === 'gps_personal') {
         if (filters.gpsPersonalCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.gpsPersonalCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.gpsPersonalCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.gpsPersonalCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.gpsPersonalCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.gpsPersonalCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.gpsPersonalPlan !== 'all') {
@@ -331,13 +341,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && systemType.toLowerCase() === 'domotica') {
         if (filters.domoticaCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.domoticaCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.domoticaCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.domoticaCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.domoticaCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.domoticaCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.domoticaPlan !== 'all') {
@@ -352,13 +361,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && systemType.toLowerCase() === 'control_asistencia') {
         if (filters.asistenciaCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.asistenciaCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.asistenciaCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.asistenciaCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.asistenciaCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.asistenciaCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.asistenciaTipo !== 'all') {
@@ -371,13 +379,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && systemType.toLowerCase() === 'control_acceso') {
         if (filters.accesoCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.accesoCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.accesoCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.accesoCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.accesoCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.accesoCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.accesoTipo !== 'all') {
@@ -394,13 +401,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && systemType.toLowerCase() === 'cctv') {
         if (filters.cctvCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.cctvCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.cctvCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.cctvCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.cctvCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.cctvCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.cctvPlan !== 'all') {
@@ -421,13 +427,12 @@ export function CustomerList({ systemType }: CustomerListProps) {
       if (systemType && (systemType.toLowerCase().includes('alarm') || systemType.toLowerCase() === 'cctv' || systemType.toLowerCase() === 'control_acceso' || systemType.toLowerCase() === 'control_asistencia' || systemType.toLowerCase() === 'domotica' || systemType.toLowerCase() === 'gps_personal' || systemType.toLowerCase() === 'gps_vehicular' || systemType.toLowerCase() === 'red' || systemType.toLowerCase() === 'video_portero')) {
         if (filters.alarmaCuenta !== 'all') {
           if (['normal', 'master', 'corporativa', 'consolidada'].includes(filters.alarmaCuenta)) {
-            const map: any = { master: 'master', corporativa: 'corporativo', consolidada: 'consolidated', normal: 'normal' };
-            query = query.eq('account_type', map[filters.alarmaCuenta]);
-            query = query.eq('status', 'Activa');
+            query = query.in('account_type', accountTypeDbValues(filters.alarmaCuenta));
+            query = query.in('status', STATUS_DB_VALUES.active);
           } else if (filters.alarmaCuenta === 'suspendida') {
-            query = query.eq('status', 'Suspendida');
+            query = query.in('status', STATUS_DB_VALUES.suspended);
           } else if (filters.alarmaCuenta === 'cancelada') {
-            query = query.in('status', ['Cancelada', 'Baja Cliente', 'Baja Moroso']);
+            query = query.in('status', STATUS_DB_VALUES.cancelled);
           }
         }
         if (filters.alarmaPlan !== 'all') {
@@ -447,7 +452,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
         if (filters.status === 'migrated') {
           query = query.not('migrated_to_company', 'is', null);
         } else {
-          query = query.eq('status', filters.status);
+          query = query.in('status', STATUS_DB_VALUES[filters.status] || [filters.status]);
         }
       }
 
@@ -468,7 +473,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
       }
 
       if (filters.monitoringPlan !== 'all') {
-        query = query.eq('monitoring_plan', filters.monitoringPlan);
+        query = query.in('monitoring_plan', planDbValues(filters.monitoringPlan));
       }
 
       if (filters.communicationTech !== 'all') {
@@ -500,7 +505,7 @@ export function CustomerList({ systemType }: CustomerListProps) {
       }
 
       if (filters.accountType !== 'all') {
-        query = query.eq('account_type', filters.accountType);
+        query = query.in('account_type', accountTypeDbValues(filters.accountType));
       }
 
       if (filters.dateFrom) {
@@ -589,26 +594,8 @@ export function CustomerList({ systemType }: CustomerListProps) {
 
   const getCustomerColor = (customer: Customer): string => {
     if (customer.migrated_to_company) return 'bg-green-50 border-green-300';
-    if (customer.status === 'cancelled') return 'bg-gray-50 border-gray-300';
-    if (customer.is_consolidated_account) return 'bg-gray-900 text-white border-gray-900';
-    if (customer.is_master_account || (customer.service_count && customer.service_count > 2)) return 'bg-yellow-50 border-yellow-400';
-
-    if (customer.service_plan === 'premium') return 'bg-purple-50 border-purple-300';
-
-    if (customer.service_plan?.includes('plus') ||
-      customer.service_plan?.includes('comunicador') ||
-      customer.connection_technology === 'dual' ||
-      customer.connection_technology === 'ip') {
-      return 'bg-blue-50 border-blue-300';
-    }
-
-    if (customer.service_plan === 'basico' ||
-      customer.service_plan === 'clasico' ||
-      customer.connection_technology === 'telefono') {
-      return 'bg-orange-50 border-orange-300';
-    }
-
-    return 'bg-white border-gray-200';
+    // El color de la tarjeta indica el tipo de cuenta (ver leyenda)
+    return getAccountTypeLegend(getAccountTypeKey(customer as any)).card;
   };
 
   const getPaymentStatusColor = (customer: Customer): string => {
@@ -870,14 +857,9 @@ export function CustomerList({ systemType }: CustomerListProps) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">Todos</option>
-                  <option value="plus_clasico">Plus Clásico</option>
-                  <option value="plus_premium">Plus Premium</option>
-                  <option value="premium_com_15">Premium Com. $15</option>
-                  <option value="premium_com_20">Premium Com. $20</option>
-                  <option value="plus_com_15">Plus Com. $15</option>
-                  <option value="plus_com_20">Plus Com. $20</option>
-                  <option value="medical_premium">Medical Premium</option>
-                  <option value="boton_panico">Botón de Pánico</option>
+                  {monitoringPlans.map((plan) => (
+                    <option key={plan.name} value={plan.name}>{plan.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -1612,35 +1594,27 @@ export function CustomerList({ systemType }: CustomerListProps) {
         {(!systemType || systemType.toLowerCase() === 'alarma') && (
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <h4 className="font-semibold text-gray-900 mb-3">Leyenda de Colores</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-orange-50 border-2 border-orange-300 rounded"></div>
-              <span>Plan Clásico</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-purple-50 border-2 border-purple-300 rounded"></div>
-              <span>Plan Premium</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-50 border-2 border-blue-300 rounded"></div>
-              <span>Planes con Comunicador</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-yellow-50 border-2 border-yellow-400 rounded"></div>
-              <span>Cuenta Maestra</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-900 border-2 border-gray-900 rounded"></div>
-              <span>Consolidada</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-50 border-2 border-gray-300 rounded"></div>
-              <span>Cancelada</span>
-            </div>
+          <h5 className="font-semibold text-gray-800 mb-2 text-sm">Tipos de Cuenta</h5>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 text-xs">
+            {ACCOUNT_TYPE_LEGEND.map((type) => (
+              <div key={type.key} className="flex items-center gap-2">
+                <div className={`w-4 h-4 border-2 rounded ${type.swatch}`}></div>
+                <span>{type.label}</span>
+              </div>
+            ))}
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-green-50 border-2 border-green-300 rounded"></div>
               <span>Migrado</span>
             </div>
+          </div>
+
+          <h5 className="font-semibold text-gray-800 mt-4 mb-2 text-sm">Planes</h5>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {monitoringPlans.map((plan) => (
+              <span key={plan.name} className={`px-2 py-1 rounded font-medium ${getPlanClasses(plan).badge}`}>
+                {plan.name}
+              </span>
+            ))}
           </div>
 
           {systemType !== 'control_acceso' && systemType !== 'control_asistencia' && (
@@ -1857,16 +1831,9 @@ export function CustomerList({ systemType }: CustomerListProps) {
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                          {customer.service_plan && (
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${customer.service_plan === 'premium'
-                              ? 'bg-purple-600 text-white'
-                              : customer.service_plan === 'basico' || customer.service_plan === 'clasico'
-                                ? 'bg-orange-600 text-white'
-                                : customer.service_plan?.includes('plus') || customer.service_plan?.includes('comunicador')
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-200 text-gray-800'
-                              }`}>
-                              {customer.service_plan.toUpperCase()}
+                          {(customer.monitoring_plan || customer.service_plan) && (
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${getPlanClasses(findPlan(monitoringPlans, customer.monitoring_plan || customer.service_plan)).badge}`}>
+                              {(findPlan(monitoringPlans, customer.monitoring_plan || customer.service_plan)?.name || customer.monitoring_plan || customer.service_plan || '').toUpperCase()}
                             </span>
                           )}
 
