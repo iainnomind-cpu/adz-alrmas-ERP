@@ -59,7 +59,7 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
     service_type: 'reactive',
     duration_option: '60',
     estimated_duration_minutes: 60,
-    travel_zone: 'zm_cd_guzman_50km',
+    travel_zone: 'local',
     technician_count: 1,
     notes: '',
     monitoring_center_folio: '',
@@ -543,7 +543,11 @@ export function NewServiceOrderForm({ onClose, onSuccess }: NewServiceOrderFormP
                     <option key={zone.value} value={zone.value}>{zone.label}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Se registra para informar cargos de traslado.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.travel_zone === 'local'
+                    ? 'Local (Cd. Guzmán, Tamazula, Tuxpan, Zapotiltic, Gómez Farías, San Andrés, Atoyac, Sayula y alrededores): traslado $0.'
+                    : 'Se registra para informar cargos de traslado (más de ~50 km).'}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">

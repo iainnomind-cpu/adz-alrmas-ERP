@@ -1,4 +1,7 @@
-export const SERVICE_TRAVEL_ZONES = [
+// "Local" cubre Cd. Guzmán, Tamazula, Tuxpan, Zapotiltic, Gómez Farías, San Andrés,
+// Atoyac, Sayula y municipios circundantes (hasta ~50 km): no cobra traslado.
+export const SERVICE_TRAVEL_ZONES: { value: string; label: string; cost?: number }[] = [
+  { value: 'local', label: 'Local — sin costo de traslado ($0)', cost: 0 },
   { value: 'zm_cd_guzman_50km', label: 'ZM Cd. Guzman hasta 50 km' },
   { value: 'zm_cd_guzman_plus_50km', label: 'ZM Cd. Guzman +50 km' },
   { value: 'colima', label: 'Colima' },
@@ -17,6 +20,11 @@ export const SERVICE_DURATION_OPTIONS = [
   { value: '300', label: '5 horas ($1,400)', minutes: 300, cost: 1400 },
   { value: '360', label: '6 horas ($1,680)', minutes: 360, cost: 1680 },
 ];
+
+export function getTravelZoneCost(value?: string | null): number | null {
+  const zone = SERVICE_TRAVEL_ZONES.find((z) => z.value === value);
+  return zone && typeof zone.cost === 'number' ? zone.cost : null;
+}
 
 export function getTravelZoneLabel(value?: string | null): string {
   return SERVICE_TRAVEL_ZONES.find((zone) => zone.value === value)?.label || 'No especificado';
