@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { clearIvaCache } from '../../lib/tax';
 import { Settings as SettingsIcon, Save, Loader2 } from 'lucide-react';
 
 interface SystemSetting {
@@ -44,6 +45,7 @@ export function SystemSettings() {
       .eq('id', settingId);
 
     if (!error) {
+      clearIvaCache();
       setSettings(prev =>
         prev.map(s => s.id === settingId ? { ...s, setting_value: newValue } : s)
       );

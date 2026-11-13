@@ -1,6 +1,8 @@
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, type PriceListItem } from '../../lib/supabase';
+import { useIvaRate, round2, formatPercent } from '../../lib/tax';
+import { describeSupabaseError } from '../../lib/supabaseErrors';
 import {
     X, Save, Loader2, AlertCircle, Package, DollarSign,
     Percent, Tag, Battery, Wifi, ClipboardList, Info, ShoppingCart
@@ -92,7 +94,9 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         cost_price_usd: item?.cost_price_usd?.toString() || '',
         cost_price_mxn: item?.cost_price_mxn?.toString() || '',
         exchange_rate: item?.exchange_rate?.toString() || '21.00',
-        selling_price: item?.base_price_mxn?.toString() || '',
+        selling_price: item
+            ? String(Number(item.price_with_tax_mxn) > 0 ? item.price_with_tax_mxn : (item.base_price_mxn ?? ''))
+            : '',
         discount_tier_1: item?.discount_tier_1 || 10,
         discount_tier_2: item?.discount_tier_2 || 15,
         discount_tier_3: item?.discount_tier_3 || 20,
@@ -105,11 +109,19 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
         is_active: item?.is_active ?? true,
         inactive_reason: item?.inactive_reason || '',
         has_tax: item ? (item.has_tax ?? true) : true,
-        tax_rate: item?.tax_rate?.toString() || '16',
+        tax_rate: item && Number(item.tax_rate) > 0 ? String(item.tax_rate) : '',
         location_id: item?.location_id || ''
     });
 
     const [locations, setLocations] = useState<{id: string, name: string}[]>([]);
+
+    // Tasa de IVA: la del producto si tiene una válida; si no, la configurada en el sistema.
+    const { percent: ivaPercent } = useIvaRate();
+    const effectiveTaxRate = useMemo(() => {
+        if (!formData.has_tax) return 0;
+        const own = parseFloat(formData.tax_rate);
+        return own > 0 ? own : ivaPercent;
+    }, [formData.has_tax, formData.tax_rate, ivaPercent]);
 
     useEffect(() => {
         const fetchLocations = async () => {
@@ -140,21 +152,18 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
             const exchangeRate = parseFloat(formData.exchange_rate) || 21;
             return costUSD * exchangeRate;
         } else {
-            return parseFloat(formData.cost_price_mxn) || 0;
+            // En MXN el costo se captura NETO (IVA incluido): se le quita el IVA
+            const net = parseFloat(formData.cost_price_mxn) || 0;
+            return net / (1 + effectiveTaxRate / 100);
         }
-    }, [formData.currency, calculatedCostUSD, formData.exchange_rate, formData.cost_price_mxn]);
+    }, [formData.currency, calculatedCostUSD, formData.exchange_rate, formData.cost_price_mxn, effectiveTaxRate]);
 
     // Calcular precio real (costo con IVA)
     const calculatedRealCost = useMemo(() => {
-        let realCost = calculatedBaseMXN;
-        if (formData.has_tax) {
-            const tr = parseFloat(formData.tax_rate) || 0;
-            realCost = realCost * (1 + (tr / 100));
-        }
-        return realCost;
-    }, [calculatedBaseMXN, formData.has_tax, formData.tax_rate]);
+        return calculatedBaseMXN * (1 + effectiveTaxRate / 100);
+    }, [calculatedBaseMXN, effectiveTaxRate]);
 
-    const [isAutoPrice, setIsAutoPrice] = useState(!item || item.base_price_mxn === parseFloat((calculatedRealCost / 0.60).toFixed(2)));
+    const [isAutoPrice, setIsAutoPrice] = useState(!item || parseFloat(formData.selling_price) === parseFloat((calculatedRealCost / 0.60).toFixed(2)));
 
     // Precio actual en base al override o cálculo automático
     const displaySellingPrice = useMemo(() => {
@@ -271,9 +280,12 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                 }
             }
 
-            const finalBasePrice = displaySellingPrice > 0 ? displaySellingPrice : calculatedBaseMXN;
-            const finalTaxRate = formData.has_tax ? parseFloat(formData.tax_rate) : 0;
-            const finalPriceWithTax = finalBasePrice * (1 + (finalTaxRate / 100));
+            // El precio de venta se captura NETO (IVA incluido). Se guarda el neto en
+            // price_with_tax_mxn y el precio base (sin IVA) se calcula a partir de él.
+            // Ejemplo: neto 350 al 16% → base 301.72.
+            const finalTaxRate = effectiveTaxRate;
+            const finalPriceWithTax = round2(displaySellingPrice > 0 ? displaySellingPrice : calculatedRealCost);
+            const finalBasePrice = round2(finalPriceWithTax / (1 + (finalTaxRate / 100)));
 
             const realCost = calculatedRealCost;
 
@@ -364,7 +376,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
             onClose();
         } catch (err) {
             console.error('Error saving price item:', err);
-            setError(err instanceof Error ? err.message : 'Error al guardar el producto');
+            setError(describeSupabaseError(err, 'Error al guardar el producto'));
         } finally {
             setLoading(false);
         }
@@ -688,7 +700,7 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
 
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Precio Base MXN
+                                                Costo sin IVA (calculado)
                                             </label>
                                             <div className="bg-green-100 border-2 border-green-400 rounded-lg p-3 text-center">
                                                 <span className="text-2xl font-bold text-green-700">
@@ -776,6 +788,18 @@ export function PriceItemForm({ item, onClose, onSuccess }: PriceItemFormProps) 
                                             placeholder="0.00"
                                         />
                                     </div>
+                                    {displaySellingPrice > 0 && (
+                                        <p className="text-xs text-gray-600 mt-2">
+                                            {formData.has_tax ? (
+                                                <>
+                                                    Precio base (sin IVA): <strong>{formatCurrency(round2(displaySellingPrice / (1 + effectiveTaxRate / 100)))}</strong>
+                                                    {' · '}IVA {formatPercent(effectiveTaxRate)}%: <strong>{formatCurrency(round2(displaySellingPrice) - round2(displaySellingPrice / (1 + effectiveTaxRate / 100)))}</strong>
+                                                </>
+                                            ) : (
+                                                <>No causa IVA: el precio base es igual al precio neto.</>
+                                            )}
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     {calculatedRealCost > 0 && displaySellingPrice > 0 && (

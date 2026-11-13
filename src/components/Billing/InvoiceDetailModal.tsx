@@ -7,6 +7,7 @@ import {
   CalendarDays, Receipt, Mail
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useIvaRate, formatPercent } from '../../lib/tax';
 import { PaymentModal } from './PaymentModal';
 import { BILLING_STATUS } from '../../constants/billingStatus';
 
@@ -78,6 +79,7 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
   const [document, setDocument] = useState<BillingDocument | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const { percent: ivaPercent } = useIvaRate();
   const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -879,7 +881,7 @@ export function InvoiceDetailModal({ isOpen, onClose, documentId }: InvoiceDetai
                 </div>
                 {document.tax > 0 && (
                   <div className="flex justify-between py-1">
-                    <span className="text-gray-600">IVA (16%):</span>
+                    <span className="text-gray-600">IVA ({formatPercent(ivaPercent)}%):</span>
                     <span className="font-semibold">${document.tax.toFixed(2)}</span>
                   </div>
                 )}

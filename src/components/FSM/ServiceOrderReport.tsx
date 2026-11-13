@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { supabase } from '../../lib/supabase';
+import { useIvaRate, formatPercent } from '../../lib/tax';
 import {
   X,
   FileText,
@@ -53,6 +54,7 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
   const [report, setReport] = useState<Report | null>(null);
   const [detailedMaterials, setDetailedMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { percent: ivaPercent, rate: ivaRate } = useIvaRate();
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -378,12 +380,12 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
                       );
                     })()}
                     <div className="flex justify-between py-2">
-                      <span className="text-gray-700">IVA (16%):</span>
-                      <span className="font-semibold text-gray-900">${(report.total_cost * 0.16).toFixed(2)}</span>
+                      <span className="text-gray-700">IVA ({formatPercent(ivaPercent)}%):</span>
+                      <span className="font-semibold text-gray-900">${(report.total_cost * ivaRate).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between pt-4 border-t-2 border-red-600">
                       <span className="text-xl font-bold text-gray-900">TOTAL GENERAL:</span>
-                      <span className="text-2xl font-bold text-red-600">${(report.total_cost * 1.16).toFixed(2)}</span>
+                      <span className="text-2xl font-bold text-red-600">${(report.total_cost * (1 + ivaRate)).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -407,7 +409,7 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
                           <p className="text-xs text-green-700 uppercase font-semibold mb-1">Anticipo Recibido</p>
                           <p className="font-bold text-green-600 text-lg">${report.partial_payment.toFixed(2)}</p>
                           <p className="text-xs text-gray-600 mt-1">
-                            Saldo pendiente: ${((report.total_cost * 1.16) - report.partial_payment).toFixed(2)}
+                            Saldo pendiente: ${((report.total_cost * (1 + ivaRate)) - report.partial_payment).toFixed(2)}
                           </p>
                         </div>
                       )}
@@ -680,12 +682,12 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
                       );
                     })()}
                     <div className="flex justify-between py-1">
-                      <span className="text-gray-700 text-sm">IVA (16%):</span>
-                      <span className="font-semibold text-gray-900 text-sm">${(report.total_cost * 0.16).toFixed(2)}</span>
+                      <span className="text-gray-700 text-sm">IVA ({formatPercent(ivaPercent)}%):</span>
+                      <span className="font-semibold text-gray-900 text-sm">${(report.total_cost * ivaRate).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between pt-2 border-t-2 border-red-600">
                       <span className="text-base font-bold text-gray-900">TOTAL GENERAL:</span>
-                      <span className="text-lg font-bold text-red-600">${(report.total_cost * 1.16).toFixed(2)}</span>
+                      <span className="text-lg font-bold text-red-600">${(report.total_cost * (1 + ivaRate)).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -709,7 +711,7 @@ export function ServiceOrderReport({ orderId, onClose }: ServiceOrderReportProps
                           <p className="text-xs text-green-700 uppercase font-semibold">Anticipo Recibido</p>
                           <p className="font-bold text-green-600 text-sm">${report.partial_payment.toFixed(2)}</p>
                           <p className="text-xs text-gray-500">
-                            Saldo: ${((report.total_cost * 1.16) - report.partial_payment).toFixed(2)}
+                            Saldo: ${((report.total_cost * (1 + ivaRate)) - report.partial_payment).toFixed(2)}
                           </p>
                         </div>
                       )}
