@@ -28,7 +28,10 @@ export function describeSupabaseError(err: unknown, fallback = 'Error al guardar
     case '23502':
       return `Falta un dato obligatorio. ${message}`.trim();
     case '42501':
-      return 'No tienes permiso para guardar en esta tabla (política RLS de Supabase).';
+      // "permission denied for table" = faltan los GRANT de la tabla; lo demás es una política RLS
+      return /permission denied for (table|relation)/i.test(message)
+        ? `La app no tiene acceso a esta tabla en Supabase (faltan los permisos GRANT). ${message}`
+        : 'No tienes permiso para hacer esto en esta tabla (política RLS de Supabase).';
     case 'PGRST204':
     case '42703':
       return `Falta una columna en la base de datos; hay una migración pendiente por aplicar. ${message}`.trim();

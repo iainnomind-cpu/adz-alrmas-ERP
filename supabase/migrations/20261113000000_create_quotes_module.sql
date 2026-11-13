@@ -135,3 +135,14 @@ WHERE r.name IN ('admin', 'customer_service')
   AND NOT EXISTS (
     SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id
   );
+
+-- ---------------------------------------------------------------------
+-- 5. Privilegios de tabla
+--    En este proyecto las tablas nuevas no quedan expuestas a la app por
+--    defecto: sin estos GRANT la app recibe "permission denied for table".
+--    Las políticas RLS de arriba siguen controlando qué filas se ven.
+-- ---------------------------------------------------------------------
+GRANT SELECT, INSERT, UPDATE, DELETE ON quotes TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON quote_items TO authenticated;
+GRANT ALL ON quotes TO service_role;
+GRANT ALL ON quote_items TO service_role;

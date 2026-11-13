@@ -230,3 +230,10 @@ ON CONFLICT (setting_key) DO NOTHING;
 UPDATE price_list
 SET tax_rate = 16
 WHERE has_tax = true AND (tax_rate IS NULL OR tax_rate = 0);
+
+-- ---------------------------------------------------------------------
+-- 7. Privilegios de la tabla nueva de planes
+--    Sin este GRANT la app no puede leerla y usa los planes por defecto.
+-- ---------------------------------------------------------------------
+GRANT SELECT, INSERT, UPDATE, DELETE ON customer_plan_options TO authenticated;
+GRANT ALL ON customer_plan_options TO service_role;
