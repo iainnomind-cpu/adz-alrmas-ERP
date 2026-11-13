@@ -119,14 +119,15 @@ export function LocationStockView() {
     };
 
     const getQtyColor = (qty: number) => {
+        // Las existencias van en negritas y con colores oscuros para que se lean bien
         if (viewMode !== 'units') {
-             if (qty === 0) return 'text-gray-300';
-             return 'text-emerald-700 font-semibold';
+             if (qty === 0) return 'text-gray-400';
+             return 'text-emerald-800 font-bold';
         }
-        if (qty === 0) return 'text-gray-300';
-        if (qty <= 2) return 'text-red-600 font-bold';
-        if (qty <= 5) return 'text-amber-600 font-semibold';
-        return 'text-green-600 font-semibold';
+        if (qty === 0) return 'text-gray-400';
+        if (qty <= 2) return 'text-red-700 font-extrabold';
+        if (qty <= 5) return 'text-amber-700 font-extrabold';
+        return 'text-green-700 font-extrabold';
     };
 
     if (loading) {
@@ -282,14 +283,14 @@ export function LocationStockView() {
                                         
                                         return (
                                             <td key={loc.id} className="px-3 py-3 text-center">
-                                                <span className={`text-sm ${getQtyColor(qty)}`}>
+                                                <span className={`${qty > 0 ? 'text-base' : 'text-sm'} ${getQtyColor(qty)}`}>
                                                     {qty === 0 ? (viewMode === 'units' ? '0' : '-') : displayVal}
                                                 </span>
                                             </td>
                                         );
                                     })}
                                     <td className="px-3 py-3 text-center bg-gray-50">
-                                        <span className={`text-sm font-bold ${row.total === 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                                        <span className={`text-base font-extrabold ${row.total === 0 ? 'text-red-600' : 'text-gray-900'}`}>
                                             {viewMode === 'units' ? row.total : (viewMode === 'cost' ? formatCurrency(row.total * row.cost) : formatCurrency(row.total * row.price))}
                                         </span>
                                     </td>

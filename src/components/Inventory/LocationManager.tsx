@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { describeSupabaseError, isDuplicateError } from '../../lib/supabaseErrors';
 import { 
     MapPin, Plus, Edit2, ToggleLeft, ToggleRight, 
-    X, Loader2, Save, Store, Truck, Users, User
+    X, Loader2, Save, Store, Truck, Users, User, Trash2
 } from 'lucide-react';
 
 interface Location {
@@ -90,7 +91,7 @@ export function LocationManager() {
             if (editingLoc) {
                 const { error } = await (supabase.from('inventory_locations') as any)
                     .update({
-                        name: formData.name,
+                        name: formData.name.trim(),
                         type: formData.type,
                         description: formData.description || null,
                         is_active: formData.is_active
@@ -100,7 +101,7 @@ export function LocationManager() {
             } else {
                 const { error } = await (supabase.from('inventory_locations') as any)
                     .insert([{
-                        name: formData.name,
+                        name: formData.name.trim(),
                         type: formData.type,
                         description: formData.description || null,
                         is_active: formData.is_active
@@ -111,7 +112,9 @@ export function LocationManager() {
             handleCloseModal();
         } catch (error) {
             console.error('Error saving location:', error);
-            alert('Error al guardar la ubicación. Puede que el nombre ya exista.');
+            alert(isDuplicateError(error)
+                ? `Ya existe una ubicación con el nombre "${formData.name.trim()}". Usa otro nombre.`
+                : describeSupabaseError(error, 'Error al guardar la ubicación'));
         } finally {
             setSaving(false);
         }
@@ -126,6 +129,37 @@ export function LocationManager() {
             await loadLocations();
         } catch (error) {
             console.error('Error toggling status:', error);
+            alert(describeSupabaseError(error, 'Error al cambiar el estado de la ubicación'));
+        }
+    };
+
+    const handleDelete = async (loc: Location) => {
+        if (!confirm(`¿Eliminar la ubicación "${loc.name}"? Esta acción no se puede deshacer.`)) return;
+        try {
+            // No se elimina una ubicación que todavía tiene existencias
+            const { data: stock, error: stockError } = await (supabase.from('inventory_location_stock') as any)
+                .select('quantity')
+                .eq('location_id', loc.id)
+                .gt('quantity', 0)
+                .limit(1);
+            if (stockError) throw stockError;
+            if (stock && stock.length > 0) {
+                alert(`"${loc.name}" todavía tiene existencias. Transfiérelas a otra ubicación antes de eliminarla, o desactívala.`);
+                return;
+            }
+
+            const { data: deleted, error } = await (supabase.from('inventory_locations') as any)
+                .delete()
+                .eq('id', loc.id)
+                .select('id');
+            if (error) throw error;
+            if (!deleted || deleted.length === 0) throw { code: '42501', message: 'No se eliminó ningún registro' };
+            await loadLocations();
+        } catch (error: any) {
+            console.error('Error deleting location:', error);
+            alert(error?.code === '23503'
+                ? `"${loc.name}" tiene movimientos o productos ligados y no se puede eliminar. Puedes desactivarla para que ya no aparezca.`
+                : describeSupabaseError(error, 'Error al eliminar la ubicación'));
         }
     };
 
@@ -186,6 +220,13 @@ export function LocationManager() {
                                         title={loc.is_active ? 'Desactivar' : 'Reactivar'}
                                     >
                                         {loc.is_active ? <ToggleLeft className="w-5 h-5 text-gray-400" /> : <ToggleRight className="w-5 h-5 text-green-500" />}
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(loc)}
+                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                        title="Eliminar Ubicación"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
